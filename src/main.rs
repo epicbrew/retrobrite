@@ -2,8 +2,10 @@
 extern crate log;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
-
 mod cpu;
+use crate::cpu::Cpu;
+mod mem;
+use crate::mem::Memory;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
@@ -23,14 +25,16 @@ fn main() {
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
 
-    let mut cpu = cpu::Cpu::default();
+    let mut cpu = Cpu::default();
+    let mut memory = Memory::default();
+
     cpu.reset();
 
     loop {
         cycle += cycle_batch;
         cycles_this_second += cycle_batch;
 
-        cpu.cycle_to(cycle);
+        cpu.cycle_to(cycle, &mut memory);
 
         let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
         let next_cycle_time = startup_time + next_cycle_offset;

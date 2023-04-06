@@ -1,3 +1,4 @@
+use crate::mem::Memory;
 
 ///
 /// NES 6502 CPU.
@@ -49,8 +50,9 @@ impl Cpu {
     }
 
     // TODO: pass in a reference to our memory
-    pub fn cycle_to(&mut self, cycle: u64) {
+    pub fn cycle_to(&mut self, cycle: u64, mem: &mut Memory) {
         while self.cycle_count < cycle {
+            let _instruction = self.read_instruction(mem);
             let cycles_used = self.execute();
             self.cycle_count += cycles_used;
         }
@@ -58,5 +60,10 @@ impl Cpu {
 
     fn execute(&mut self) -> u64 {
         1
+    }
+
+    fn read_instruction(&self, mem: &mut Memory) -> u8 {
+        //mem.write(self.PC + 1, 0);
+        mem.read(self.PC)
     }
 }
