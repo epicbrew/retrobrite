@@ -3,6 +3,8 @@ extern crate log;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
 
+mod cpu;
+
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
 const CPU_FREQ: u64 = MASTER_CLOCK_HZ / CLOCK_DIVISOR;
@@ -21,17 +23,20 @@ fn main() {
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
 
+    let mut cpu = cpu::Cpu::default();
+    cpu.reset();
+
     loop {
         cycle += cycle_batch;
         cycles_this_second += cycle_batch;
+
+        cpu.cycle_to(cycle);
 
         let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
         let next_cycle_time = startup_time + next_cycle_offset;
         let sleep_time = next_cycle_time - Instant::now();
 
         sleep(sleep_time);
-
-        // simulate work
 
         //if cycle % CPU_FREQ == 0 {
         if cycles_this_second >= CPU_FREQ {
