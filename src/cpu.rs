@@ -9,27 +9,31 @@ use crate::mem::Memory;
 /// 
 #[allow(non_snake_case)]
 pub struct Cpu {
-    A: u8,
-    X: u8,
-    Y: u8,
-    PC: u16,
-    S: u8,
-    P: u8,
+    A: u8,  // Accumulator register
+    X: u8,  // X index register
+    Y: u8,  // Y index register
+    PC: u16,// Program Counter
+    SP: u8, // Stack pointer
+    P: u8,  // Status flags
+
+    /// CPU cycle counter
     cycle_count: u64,
 }
 
 impl Default for Cpu {
     ///
     /// Default CPU constructor.
+    /// Using powerup state documented here:
+    ///     https://www.nesdev.org/wiki/CPU_power_up_state
     /// 
     fn default() -> Self {
         Self {
             A: 0,
             X: 0,
             Y: 0,
-            PC: 0,
-            S: 0,
-            P: 0,
+            PC: 0xFFFC,
+            SP: 0xFD,
+            P: 0x34,
             /// Keep track of how many cycles the cpu has executed.
             cycle_count: 0,
         }
@@ -44,8 +48,8 @@ impl Cpu {
         self.A = 0;
         self.X = 0;
         self.Y = 0;
-        self.PC = 0;
-        self.S = 0;
+        self.PC = 0xFFFC;
+        self.SP = 0xFD;
         self.P = 0;
     }
 
