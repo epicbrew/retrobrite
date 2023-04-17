@@ -66,8 +66,11 @@ impl Cpu {
         1
     }
 
-    fn read_instruction(&self, mem: &mut Memory) -> u8 {
+    fn read_instruction(&mut self, mem: &mut Memory) -> u8 {
         //mem.write(self.PC + 1, 0);
-        mem.read(self.PC)
+        let instruction = mem.read(self.PC);
+        self.PC += 1;
+
+        instruction
     }
 }
