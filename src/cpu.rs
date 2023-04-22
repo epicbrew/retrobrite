@@ -36,18 +36,18 @@ type CpuOp = fn(&mut Cpu);
 
 enum AddrMode {
     IMM,
-	ABS,
-	ZP,
-	IMP,
-	IND,
-	ABX,
-	ABY,
-	ZPX,
-	ZPY,
-	IZX,
-	IZY,
-	REL,
-	ACC,
+    ABS,
+    ZP,
+    IMP,
+    IND,
+    ABX,
+    ABY,
+    ZPX,
+    ZPY,
+    IZX,
+    IZY,
+    REL,
+    ACC,
     UNK, // Unknown addressing mode for illegal instructions
 }
 
