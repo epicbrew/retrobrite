@@ -25,8 +25,8 @@ fn main() {
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
 
-    let mut cpu = Cpu::default();
-    let mut memory = Memory::default();
+    let memory = Memory::default();
+    let mut cpu = Cpu::new(memory);
 
     cpu.reset();
 
@@ -34,7 +34,7 @@ fn main() {
         cycle += cycle_batch;
         cycles_this_second += cycle_batch;
 
-        cpu.cycle_to(cycle, &mut memory);
+        cpu.cycle_to(cycle);
 
         let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
         let next_cycle_time = startup_time + next_cycle_offset;
