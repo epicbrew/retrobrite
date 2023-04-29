@@ -2,10 +2,12 @@
 extern crate log;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
+
 mod cpu;
-use crate::cpu::Cpu;
+use cpu::Cpu;
+
 mod mem;
-use crate::mem::Memory;
+use mem::Memory;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;

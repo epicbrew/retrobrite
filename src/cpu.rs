@@ -175,7 +175,15 @@ impl Cpu {
         self.oops();
     }
 
+    fn bcc(&mut self) {
+        self.oops();
+    }
+
     fn bcs(&mut self) {
+        self.oops();
+    }
+
+    fn beq(&mut self) {
         self.oops();
     }
 
@@ -187,11 +195,11 @@ impl Cpu {
         self.oops();
     }
 
-    fn bpl(&mut self) {
+    fn bne(&mut self) {
         self.oops();
     }
 
-    fn bvc(&mut self) {
+    fn bpl(&mut self) {
         self.oops();
     }
 
@@ -199,7 +207,19 @@ impl Cpu {
         self.oops();
     }
 
+    fn bvc(&mut self) {
+        self.oops();
+    }
+
+    fn bvs(&mut self) {
+        self.oops();
+    }
+
     fn clc(&mut self) {
+        self.oops();
+    }
+
+    fn cld(&mut self) {
         self.oops();
     }
 
@@ -211,7 +231,43 @@ impl Cpu {
         self.oops();
     }
 
+    fn cmp(&mut self) {
+        self.oops();
+    }
+
+    fn cpx(&mut self) {
+        self.oops();
+    }
+
+    fn cpy(&mut self) {
+        self.oops();
+    }
+
+    fn dec(&mut self) {
+        self.oops();
+    }
+
+    fn dex(&mut self) {
+        self.oops();
+    }
+
+    fn dey(&mut self) {
+        self.oops();
+    }
+
     fn eor(&mut self) {
+        self.oops();
+    }
+
+    fn inc(&mut self) {
+        self.oops();
+    }
+
+    fn inx(&mut self) {
+        self.oops();
+    }
+
+    fn iny(&mut self) {
         self.oops();
     }
 
@@ -236,6 +292,10 @@ impl Cpu {
     }
 
     fn lsr(&mut self) {
+        self.oops();
+    }
+
+    fn nop(&mut self) {
         self.oops();
     }
 
@@ -275,7 +335,31 @@ impl Cpu {
         self.oops();
     }
 
+    fn sbc(&mut self) {
+        self.oops();
+    }
+
     fn sec(&mut self) {
+        self.oops();
+    }
+
+    fn sed(&mut self) {
+        self.oops();
+    }
+
+    fn sei(&mut self) {
+        self.oops();
+    }
+
+    fn sta(&mut self) {
+        self.oops();
+    }
+
+    fn stx(&mut self) {
+        self.oops();
+    }
+
+    fn sty(&mut self) {
         self.oops();
     }
 
@@ -288,6 +372,18 @@ impl Cpu {
     }
 
     fn tsx(&mut self) {
+        self.oops();
+    }
+
+    fn txa(&mut self) {
+        self.oops();
+    }
+
+    fn txs(&mut self) {
+        self.oops();
+    }
+
+    fn tya(&mut self) {
         self.oops();
     }
 
@@ -418,56 +514,56 @@ impl Cpu {
         Instruction {opcode: 0x6E, func: Cpu::ror,  addr_mode: AddrMode::ABS, name: "ROR", cycles: 6 },
         Instruction {opcode: 0x6F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "RRA", cycles: 6 },
 
-        Instruction {opcode: 0x70, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x71, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x72, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x73, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x74, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x75, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x76, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x77, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x78, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x79, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7A, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7B, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7C, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7D, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7E, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x7F, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0x70, func: Cpu::bvs,  addr_mode: AddrMode::REL, name: "BVS", cycles: 2 },
+        Instruction {opcode: 0x71, func: Cpu::adc,  addr_mode: AddrMode::IZY, name: "ADC", cycles: 5 },
+        Instruction {opcode: 0x72, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0 },
+        Instruction {opcode: 0x73, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "RRA", cycles: 8 },
+        Instruction {opcode: 0x74, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0x75, func: Cpu::adc,  addr_mode: AddrMode::ZPX, name: "ADC", cycles: 4 },
+        Instruction {opcode: 0x76, func: Cpu::ror,  addr_mode: AddrMode::ZPX, name: "ROR", cycles: 6 },
+        Instruction {opcode: 0x77, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "RRA", cycles: 6 },
+        Instruction {opcode: 0x78, func: Cpu::sei,  addr_mode: AddrMode::IMP, name: "SEI", cycles: 2 },
+        Instruction {opcode: 0x79, func: Cpu::adc,  addr_mode: AddrMode::ABY, name: "ADC", cycles: 4 },
+        Instruction {opcode: 0x7A, func: Cpu::oops, addr_mode: AddrMode::IMP, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0x7B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "RRA", cycles: 7 },
+        Instruction {opcode: 0x7C, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0x7D, func: Cpu::adc,  addr_mode: AddrMode::ABX, name: "ADC", cycles: 4 },
+        Instruction {opcode: 0x7E, func: Cpu::ror,  addr_mode: AddrMode::ABX, name: "ROR", cycles: 7 },
+        Instruction {opcode: 0x7F, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "RRA", cycles: 7 },
 
-        Instruction {opcode: 0x80, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x81, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x82, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x83, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x84, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x85, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x86, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x87, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x88, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x89, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8A, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8B, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8C, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8D, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8E, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x8F, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0x80, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0x81, func: Cpu::sta,  addr_mode: AddrMode::IZX, name: "STA", cycles: 6 },
+        Instruction {opcode: 0x82, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0x83, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "SAX", cycles: 6 },
+        Instruction {opcode: 0x84, func: Cpu::sty,  addr_mode: AddrMode::ZP,  name: "STY", cycles: 3 },
+        Instruction {opcode: 0x85, func: Cpu::sta,  addr_mode: AddrMode::ZP,  name: "STA", cycles: 3 },
+        Instruction {opcode: 0x86, func: Cpu::stx,  addr_mode: AddrMode::ZP,  name: "STX", cycles: 3 },
+        Instruction {opcode: 0x87, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "SAX", cycles: 3 },
+        Instruction {opcode: 0x88, func: Cpu::dey,  addr_mode: AddrMode::IMP, name: "DEY", cycles: 2 },
+        Instruction {opcode: 0x89, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0x8A, func: Cpu::txa,  addr_mode: AddrMode::IMP, name: "TXA", cycles: 2 },
+        Instruction {opcode: 0x8B, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "XAA", cycles: 2 },
+        Instruction {opcode: 0x8C, func: Cpu::sty,  addr_mode: AddrMode::ABS, name: "STY", cycles: 4 },
+        Instruction {opcode: 0x8D, func: Cpu::sta,  addr_mode: AddrMode::ABS, name: "STA", cycles: 4 },
+        Instruction {opcode: 0x8E, func: Cpu::stx,  addr_mode: AddrMode::ABS, name: "STX", cycles: 4 },
+        Instruction {opcode: 0x8F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "SAX", cycles: 4 },
 
-        Instruction {opcode: 0x90, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x91, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x92, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x93, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x94, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x95, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x96, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x97, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x98, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x99, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9A, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9B, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9C, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9D, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9E, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0x9F, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0x90, func: Cpu::bcc,  addr_mode: AddrMode::REL, name: "BCC", cycles: 2 },
+        Instruction {opcode: 0x91, func: Cpu::sta,  addr_mode: AddrMode::IZY, name: "STA", cycles: 6 },
+        Instruction {opcode: 0x92, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0 },
+        Instruction {opcode: 0x93, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "AHX", cycles: 6 },
+        Instruction {opcode: 0x94, func: Cpu::sty,  addr_mode: AddrMode::ZPX, name: "STY", cycles: 4 },
+        Instruction {opcode: 0x95, func: Cpu::sta,  addr_mode: AddrMode::ZPX, name: "STA", cycles: 4 },
+        Instruction {opcode: 0x96, func: Cpu::stx,  addr_mode: AddrMode::ZPY, name: "STX", cycles: 4 },
+        Instruction {opcode: 0x97, func: Cpu::oops, addr_mode: AddrMode::ZPY, name: "SAX", cycles: 4 },
+        Instruction {opcode: 0x98, func: Cpu::tya,  addr_mode: AddrMode::IMP, name: "TYA", cycles: 2 },
+        Instruction {opcode: 0x99, func: Cpu::sta,  addr_mode: AddrMode::ABY, name: "STA", cycles: 5 },
+        Instruction {opcode: 0x9A, func: Cpu::txs,  addr_mode: AddrMode::IMP, name: "TXS", cycles: 2 },
+        Instruction {opcode: 0x9B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "TAS", cycles: 5 },
+        Instruction {opcode: 0x9C, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "SHY", cycles: 5 },
+        Instruction {opcode: 0x9D, func: Cpu::sta,  addr_mode: AddrMode::ABX, name: "STA", cycles: 5 },
+        Instruction {opcode: 0x9E, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "SHX", cycles: 5 },
+        Instruction {opcode: 0x9F, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "AHX", cycles: 5 },
 
         Instruction {opcode: 0xA0, func: Cpu::ldy,  addr_mode: AddrMode::IMM, name: "LDY", cycles: 2 },
         Instruction {opcode: 0xA1, func: Cpu::lda,  addr_mode: AddrMode::IZX, name: "LDA", cycles: 6 },
@@ -503,73 +599,73 @@ impl Cpu {
         Instruction {opcode: 0xBE, func: Cpu::ldx,  addr_mode: AddrMode::ABY, name: "LDX", cycles: 4 },
         Instruction {opcode: 0xBF, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "LAX", cycles: 4 },
 
-        Instruction {opcode: 0xC0, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC1, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC3, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC4, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC5, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC6, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC7, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC8, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xC9, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCA, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCB, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCC, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCD, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCE, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xCF, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0xC0, func: Cpu::cpy,  addr_mode: AddrMode::IMM, name: "CPY", cycles: 2 },
+        Instruction {opcode: 0xC1, func: Cpu::cmp,  addr_mode: AddrMode::IZX, name: "CMP", cycles: 6 },
+        Instruction {opcode: 0xC2, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0xC3, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "DCP", cycles: 8 },
+        Instruction {opcode: 0xC4, func: Cpu::cpy,  addr_mode: AddrMode::ZP,  name: "CPY", cycles: 3 },
+        Instruction {opcode: 0xC5, func: Cpu::cmp,  addr_mode: AddrMode::ZP,  name: "CMP", cycles: 3 },
+        Instruction {opcode: 0xC6, func: Cpu::dec,  addr_mode: AddrMode::ZP,  name: "DEC", cycles: 5 },
+        Instruction {opcode: 0xC7, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "DCP", cycles: 5 },
+        Instruction {opcode: 0xC8, func: Cpu::iny,  addr_mode: AddrMode::IMP, name: "INY", cycles: 2 },
+        Instruction {opcode: 0xC9, func: Cpu::cmp,  addr_mode: AddrMode::IMM, name: "CMP", cycles: 2 },
+        Instruction {opcode: 0xCA, func: Cpu::dex,  addr_mode: AddrMode::IMP, name: "DEX", cycles: 2 },
+        Instruction {opcode: 0xCB, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "AXS", cycles: 2 },
+        Instruction {opcode: 0xCC, func: Cpu::cpy,  addr_mode: AddrMode::ABS, name: "CPY", cycles: 4 },
+        Instruction {opcode: 0xCD, func: Cpu::cmp,  addr_mode: AddrMode::ABS, name: "CMP", cycles: 4 },
+        Instruction {opcode: 0xCE, func: Cpu::dec,  addr_mode: AddrMode::ABS, name: "DEC", cycles: 6 },
+        Instruction {opcode: 0xCF, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "DCP", cycles: 6 },
 
-        Instruction {opcode: 0xD0, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD1, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD3, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD4, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD5, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD6, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD7, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD8, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xD9, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDA, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDB, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDC, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDD, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDE, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xDF, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0xD0, func: Cpu::bne,  addr_mode: AddrMode::REL, name: "BNE", cycles: 2 },
+        Instruction {opcode: 0xD1, func: Cpu::cmp,  addr_mode: AddrMode::IZY, name: "CMP", cycles: 5 },
+        Instruction {opcode: 0xD2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0 },
+        Instruction {opcode: 0xD3, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "DCP", cycles: 8 },
+        Instruction {opcode: 0xD4, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0xD5, func: Cpu::cmp,  addr_mode: AddrMode::ZPX, name: "CMP", cycles: 4 },
+        Instruction {opcode: 0xD6, func: Cpu::dec,  addr_mode: AddrMode::ZPX, name: "DEC", cycles: 6 },
+        Instruction {opcode: 0xD7, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "DCP", cycles: 6 },
+        Instruction {opcode: 0xD8, func: Cpu::cld,  addr_mode: AddrMode::IMP, name: "CLD", cycles: 2 },
+        Instruction {opcode: 0xD9, func: Cpu::cmp,  addr_mode: AddrMode::ABY, name: "CMP", cycles: 4 },
+        Instruction {opcode: 0xDA, func: Cpu::oops, addr_mode: AddrMode::IMP, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0xDB, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "DCP", cycles: 7 },
+        Instruction {opcode: 0xDC, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0xDD, func: Cpu::cmp,  addr_mode: AddrMode::ABX, name: "CMP", cycles: 4 },
+        Instruction {opcode: 0xDE, func: Cpu::dec,  addr_mode: AddrMode::ABX, name: "DEC", cycles: 7 },
+        Instruction {opcode: 0xDF, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "DCP", cycles: 7 },
 
-        Instruction {opcode: 0xE0, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE1, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE3, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE4, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE5, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE6, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE7, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE8, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xE9, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xEA, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xEB, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xEC, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xED, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xEE, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xEF, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0xE0, func: Cpu::cpx,  addr_mode: AddrMode::IMM, name: "CPX", cycles: 2 },
+        Instruction {opcode: 0xE1, func: Cpu::sbc,  addr_mode: AddrMode::IZX, name: "SBC", cycles: 6 },
+        Instruction {opcode: 0xE2, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0xE3, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "ISC", cycles: 8 },
+        Instruction {opcode: 0xE4, func: Cpu::cpx,  addr_mode: AddrMode::ZP,  name: "CPX", cycles: 3 },
+        Instruction {opcode: 0xE5, func: Cpu::sbc,  addr_mode: AddrMode::ZP,  name: "SBC", cycles: 3 },
+        Instruction {opcode: 0xE6, func: Cpu::inc,  addr_mode: AddrMode::ZP,  name: "INC", cycles: 5 },
+        Instruction {opcode: 0xE7, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "ISC", cycles: 5 },
+        Instruction {opcode: 0xE8, func: Cpu::inx,  addr_mode: AddrMode::IMP, name: "INX", cycles: 2 },
+        Instruction {opcode: 0xE9, func: Cpu::sbc,  addr_mode: AddrMode::IMM, name: "SBC", cycles: 2 },
+        Instruction {opcode: 0xEA, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0xEB, func: Cpu::oops, addr_mode: AddrMode::IMM, name: "SBC", cycles: 2 },
+        Instruction {opcode: 0xEC, func: Cpu::cpx,  addr_mode: AddrMode::ABS, name: "CPX", cycles: 4 },
+        Instruction {opcode: 0xED, func: Cpu::sbc,  addr_mode: AddrMode::ABS, name: "SBC", cycles: 4 },
+        Instruction {opcode: 0xEE, func: Cpu::inc,  addr_mode: AddrMode::ABS, name: "INC", cycles: 6 },
+        Instruction {opcode: 0xEF, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "ISC", cycles: 6 },
 
-        Instruction {opcode: 0xF0, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF1, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF3, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF4, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF5, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF6, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF7, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF8, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xF9, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFA, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFB, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFC, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFD, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFE, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
-        Instruction {opcode: 0xFF, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "XXX", cycles: 0 },
+        Instruction {opcode: 0xF0, func: Cpu::beq,  addr_mode: AddrMode::REL, name: "BEQ", cycles: 2 },
+        Instruction {opcode: 0xF1, func: Cpu::sbc,  addr_mode: AddrMode::IZY, name: "SBC", cycles: 5 },
+        Instruction {opcode: 0xF2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0 },
+        Instruction {opcode: 0xF3, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "ISC", cycles: 8 },
+        Instruction {opcode: 0xF4, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0xF5, func: Cpu::sbc,  addr_mode: AddrMode::ZPX, name: "SBC", cycles: 4 },
+        Instruction {opcode: 0xF6, func: Cpu::inc,  addr_mode: AddrMode::ZPX, name: "INC", cycles: 6 },
+        Instruction {opcode: 0xF7, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "ISC", cycles: 6 },
+        Instruction {opcode: 0xF8, func: Cpu::sed,  addr_mode: AddrMode::IMP, name: "SED", cycles: 2 },
+        Instruction {opcode: 0xF9, func: Cpu::sbc,  addr_mode: AddrMode::ABY, name: "SBC", cycles: 4 },
+        Instruction {opcode: 0xFA, func: Cpu::oops, addr_mode: AddrMode::IMP, name: "NOP", cycles: 2 },
+        Instruction {opcode: 0xFB, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "ISC", cycles: 7 },
+        Instruction {opcode: 0xFC, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "NOP", cycles: 4 },
+        Instruction {opcode: 0xFD, func: Cpu::sbc,  addr_mode: AddrMode::ABX, name: "SBC", cycles: 4 },
+        Instruction {opcode: 0xFE, func: Cpu::inc,  addr_mode: AddrMode::ABX, name: "INC", cycles: 7 },
+        Instruction {opcode: 0xFF, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "ISC", cycles: 7 },
     ];
 }
 
