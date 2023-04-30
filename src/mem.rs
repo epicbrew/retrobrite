@@ -19,6 +19,15 @@ impl Memory {
         self.mem[addr as usize]
     }
 
+    pub fn read_word(&self, addr: u16) -> u16 {
+        let addr = addr as usize;
+
+        let lsb = self.mem[addr] as u16;
+        let msb = self.mem[addr + 1] as u16;
+
+        msb << 8 | lsb
+    }
+
     pub fn write(&mut self, addr: u16, value: u8) {
         self.mem[addr as usize] = value;
     }

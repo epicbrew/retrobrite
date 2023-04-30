@@ -66,6 +66,20 @@ pub struct Cpu {
 }
 
 impl Cpu {
+    ///// Processor status carry flag mask.
+    //const PS_C_FLAG_MASK: u8 = 0b00000001;
+    ///// Processor status zero flag mask.
+    //const PS_Z_FLAG_MASK: u8 = 0b00000010;
+    ///// Processor status interupt disable flag mask.
+    //const PS_I_FLAG_MASK: u8 = 0b00000100;
+    ///// Processor status decimal flag mask (unused).
+    //const PS_D_FLAG_MASK: u8 = 0b00001000;
+    ///// Processor status break flag mask.
+    //const PS_B_FLAG_MASK: u8 = 0b00010000;
+    ///// Processor status overflow flag mask.
+    //const PS_V_FLAG_MASK: u8 = 0b01000000;
+    ///// Processor status negative flag mask.
+    //const PS_N_FLAG_MASK: u8 = 0b10000000;
 
     pub fn new(mem: Memory) -> Self {
         let mut new_self = Self {
@@ -80,15 +94,15 @@ impl Cpu {
         new_self
     }
 
-    pub fn default() -> Self {
-        Self {
-            reg: Registers::default(),
-            mem: Memory::default(),
-            opcode: 0,
-            operand: 0,
-            cycle_count: 0,
-        }
-    }
+    //pub fn default() -> Self {
+    //    Self {
+    //        reg: Registers::default(),
+    //        mem: Memory::default(),
+    //        opcode: 0,
+    //        operand: 0,
+    //        cycle_count: 0,
+    //    }
+    //}
 
     ///
     /// Reset CPU as if NES reset button was pressed.
@@ -99,7 +113,7 @@ impl Cpu {
         self.reg.A = 0;
         self.reg.X = 0;
         self.reg.Y = 0;
-        //self.reg.PC = self.mem.read_word(0xFFFC);
+        self.reg.PC = self.mem.read_word(0xFFFC);
         self.reg.SP = 0xFD;
         self.reg.P = 0;
     }
