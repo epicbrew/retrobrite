@@ -68,8 +68,8 @@ pub struct Cpu {
 impl Cpu {
     ///// Processor status carry flag mask.
     //const PS_C_FLAG_MASK: u8 = 0b00000001;
-    ///// Processor status zero flag mask.
-    //const PS_Z_FLAG_MASK: u8 = 0b00000010;
+    /// Processor status zero flag mask.
+    const PS_Z_FLAG_MASK: u8 = 0b00000010;
     ///// Processor status interupt disable flag mask.
     //const PS_I_FLAG_MASK: u8 = 0b00000100;
     ///// Processor status decimal flag mask (unused).
@@ -78,8 +78,8 @@ impl Cpu {
     //const PS_B_FLAG_MASK: u8 = 0b00010000;
     ///// Processor status overflow flag mask.
     //const PS_V_FLAG_MASK: u8 = 0b01000000;
-    ///// Processor status negative flag mask.
-    //const PS_N_FLAG_MASK: u8 = 0b10000000;
+    /// Processor status negative flag mask.
+    const PS_N_FLAG_MASK: u8 = 0b10000000;
 
     pub fn new(mem: Memory) -> Self {
         let mut new_self = Self {
@@ -94,15 +94,15 @@ impl Cpu {
         new_self
     }
 
-    //pub fn default() -> Self {
-    //    Self {
-    //        reg: Registers::default(),
-    //        mem: Memory::default(),
-    //        opcode: 0,
-    //        operand: 0,
-    //        cycle_count: 0,
-    //    }
-    //}
+    pub fn default() -> Self {
+        Self {
+            reg: Registers::default(),
+            mem: Memory::default(),
+            opcode: 0,
+            operand: 0,
+            cycle_count: 0,
+        }
+    }
 
     ///
     /// Reset CPU as if NES reset button was pressed.
@@ -174,11 +174,39 @@ impl Cpu {
         }
     }
 
+    fn set_processor_status_n_flag(&mut self) {
+        let bit7 = self.reg.A & Cpu::PS_N_FLAG_MASK;
+        match bit7 {
+            0 => { self.reg.P &= !(Cpu::PS_N_FLAG_MASK) }
+            _ => { self.reg.P |= Cpu::PS_N_FLAG_MASK    }
+        }
+    }
+
+    fn set_processor_status_z_flag(&mut self) {
+        match self.reg.A {
+            0 => { self.reg.P |= Cpu::PS_Z_FLAG_MASK }
+            _ => { self.reg.P &= !Cpu::PS_Z_FLAG_MASK }
+        }
+    }
+
+    fn flag_is_set(&self, flag: u8) -> bool {
+        match self.reg.P & flag {
+            0 => false,
+            _ => true,
+        }
+    }
+
+    fn set_processor_status_nz_flags(&mut self) {
+        self.set_processor_status_n_flag();
+        self.set_processor_status_z_flag();
+    }
+
     //
     // CPU Instructions
     //
     fn and(&mut self) {
-        self.oops();
+        self.reg.A &= self.operand;
+        self.set_processor_status_nz_flags();
     }
 
     fn adc(&mut self) {
@@ -270,7 +298,8 @@ impl Cpu {
     }
 
     fn eor(&mut self) {
-        self.oops();
+        self.reg.A ^= self.operand;
+        self.set_processor_status_nz_flags();
     }
 
     fn inc(&mut self) {
@@ -314,7 +343,8 @@ impl Cpu {
     }
 
     fn ora(&mut self) {
-        self.oops();
+        self.reg.A |= self.operand;
+        self.set_processor_status_nz_flags();
     }
 
     fn pha(&mut self) {
@@ -687,16 +717,6 @@ impl Cpu {
 mod tests {
     use super::*;
 
-    //fn get_cpu() -> Cpu {
-    //    Cpu {
-    //        reg: Registers::default(),
-    //        mem: Memory::default(),
-    //        opcode: 0,
-    //        operand: 0,
-    //        cycle_count: 0
-    //    }
-    //}
-
     fn get_cpu_with_mem_ramp() -> Cpu {
         let mut mem = Memory::default();
 
@@ -769,5 +789,53 @@ mod tests {
         // The value at 0x0302 should be 2 in the mem ramp.
         cpu.fetch_operand(&AddrMode::ABS);
         assert!(cpu.operand == 2);
+    }
+
+    #[test]
+    fn test_and_operation_with_zero_result() {
+        let mut cpu = Cpu::default();
+        cpu.reg.A   = 0x0F;
+        cpu.operand = 0xF0;
+        cpu.and();
+
+        assert!(cpu.reg.A == 0);
+        assert!(cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
+        assert!(!cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+    }
+
+    #[test]
+    fn test_and_operation_with_negative_result() {
+        let mut cpu = Cpu::default();
+        cpu.reg.A   = 0x81;
+        cpu.operand = 0xF1;
+        cpu.and();
+
+        assert!(cpu.reg.A == 0x81);
+        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
+        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+    }
+
+    #[test]
+    fn test_eor_operation() {
+        let mut cpu = Cpu::default();
+        cpu.reg.A   = 0x0F;
+        cpu.operand = 0xFF;
+        cpu.eor();
+
+        assert!(cpu.reg.A == 0xF0);
+        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
+        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+    }
+
+    #[test]
+    fn test_ora_operation() {
+        let mut cpu = Cpu::default();
+        cpu.reg.A   = 0x8F;
+        cpu.operand = 0x71;
+        cpu.ora();
+
+        assert!(cpu.reg.A == 0xFF);
+        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
+        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
     }
 }
