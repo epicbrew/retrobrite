@@ -3,6 +3,7 @@ extern crate log;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
 
+mod utils;
 mod cpu;
 use cpu::Cpu;
 

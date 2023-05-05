@@ -1,4 +1,8 @@
+use crate::utils;
 use crate::mem::Memory;
+
+mod constants;
+use constants::*;
 
 /// Function type for Cpu operations.
 type CpuOp = fn(&mut Cpu);
@@ -66,20 +70,6 @@ pub struct Cpu {
 }
 
 impl Cpu {
-    ///// Processor status carry flag mask.
-    //const PS_C_FLAG_MASK: u8 = 0b00000001;
-    /// Processor status zero flag mask.
-    const PS_Z_FLAG_MASK: u8 = 0b00000010;
-    ///// Processor status interupt disable flag mask.
-    //const PS_I_FLAG_MASK: u8 = 0b00000100;
-    ///// Processor status decimal flag mask (unused).
-    //const PS_D_FLAG_MASK: u8 = 0b00001000;
-    ///// Processor status break flag mask.
-    //const PS_B_FLAG_MASK: u8 = 0b00010000;
-    ///// Processor status overflow flag mask.
-    //const PS_V_FLAG_MASK: u8 = 0b01000000;
-    /// Processor status negative flag mask.
-    const PS_N_FLAG_MASK: u8 = 0b10000000;
 
     pub fn new(mem: Memory) -> Self {
         let mut new_self = Self {
@@ -175,25 +165,14 @@ impl Cpu {
     }
 
     fn set_processor_status_n_flag(&mut self) {
-        let bit7 = self.reg.A & Cpu::PS_N_FLAG_MASK;
-        match bit7 {
-            0 => { self.reg.P &= !(Cpu::PS_N_FLAG_MASK) }
-            _ => { self.reg.P |= Cpu::PS_N_FLAG_MASK    }
-        }
+        self.reg.P = utils::set_bit_from(PS_N_BIT, self.reg.A, self.reg.P);
     }
 
     fn set_processor_status_z_flag(&mut self) {
-        match self.reg.A {
-            0 => { self.reg.P |= Cpu::PS_Z_FLAG_MASK }
-            _ => { self.reg.P &= !Cpu::PS_Z_FLAG_MASK }
-        }
-    }
-
-    fn flag_is_set(&self, flag: u8) -> bool {
-        match self.reg.P & flag {
-            0 => false,
-            _ => true,
-        }
+        self.reg.P = match self.reg.A {
+            0 => utils::set_bit(PS_Z_BIT, self.reg.P),
+            _ => utils::clear_bit(PS_Z_BIT, self.reg.P),
+        };
     }
 
     fn set_processor_status_nz_flags(&mut self) {
@@ -230,7 +209,13 @@ impl Cpu {
     }
 
     fn bit(&mut self) {
-        self.oops();
+        let previous_a_value = self.reg.A;
+        self.reg.A &= self.operand;
+        self.set_processor_status_z_flag();
+        self.reg.A = previous_a_value;
+
+        self.reg.P = utils::set_bit_from(6, self.operand, self.reg.P);
+        self.reg.P = utils::set_bit_from(7, self.operand, self.reg.P);
     }
 
     fn bmi(&mut self) {
@@ -397,6 +382,7 @@ impl Cpu {
 
     fn sta(&mut self) {
         self.oops();
+        //self.mem.write(self.operand, self.reg.A);
     }
 
     fn stx(&mut self) {
@@ -408,27 +394,32 @@ impl Cpu {
     }
 
     fn tax(&mut self) {
-        self.oops();
+        self.reg.X = self.reg.A;
+        self.set_processor_status_nz_flags();
     }
 
     fn tay(&mut self) {
-        self.oops();
+        self.reg.Y = self.reg.A;
+        self.set_processor_status_nz_flags();
     }
 
     fn tsx(&mut self) {
-        self.oops();
+        self.reg.X = self.reg.SP;
+        self.set_processor_status_nz_flags();
     }
 
     fn txa(&mut self) {
-        self.oops();
+        self.reg.A = self.reg.X;
+        self.set_processor_status_nz_flags();
     }
 
     fn txs(&mut self) {
-        self.oops();
+        self.reg.SP = self.reg.X;
     }
 
     fn tya(&mut self) {
-        self.oops();
+        self.reg.A = self.reg.Y;
+        self.set_processor_status_nz_flags();
     }
 
     fn oops(&mut self) {
@@ -799,8 +790,8 @@ mod tests {
         cpu.and();
 
         assert!(cpu.reg.A == 0);
-        assert!(cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
-        assert!(!cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+        assert!(utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 
     #[test]
@@ -811,8 +802,8 @@ mod tests {
         cpu.and();
 
         assert!(cpu.reg.A == 0x81);
-        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
-        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 
     #[test]
@@ -823,8 +814,8 @@ mod tests {
         cpu.eor();
 
         assert!(cpu.reg.A == 0xF0);
-        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
-        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 
     #[test]
@@ -835,7 +826,7 @@ mod tests {
         cpu.ora();
 
         assert!(cpu.reg.A == 0xFF);
-        assert!(!cpu.flag_is_set(Cpu::PS_Z_FLAG_MASK));
-        assert!(cpu.flag_is_set(Cpu::PS_N_FLAG_MASK));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 }
