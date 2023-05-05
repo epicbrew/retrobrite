@@ -94,17 +94,6 @@ impl Cpu {
         new_self
     }
 
-    pub fn default() -> Self {
-        Self {
-            reg: Registers::default(),
-            mem: Memory::default(),
-            opcode: 0,
-            address: 0,
-            operand: 0,
-            cycle_count: 0,
-        }
-    }
-
     ///
     /// Reset CPU as if NES reset button was pressed.
     /// TODO: reset registers to correct values.
@@ -451,16 +440,15 @@ impl Cpu {
     }
 
     fn sta(&mut self) {
-        self.oops();
-        //self.mem.write(self.operand, self.reg.A);
+        self.mem.write(self.address, self.reg.A);
     }
 
     fn stx(&mut self) {
-        self.oops();
+        self.mem.write(self.address, self.reg.X);
     }
 
     fn sty(&mut self) {
-        self.oops();
+        self.mem.write(self.address, self.reg.Y);
     }
 
     fn tax(&mut self) {
@@ -777,6 +765,20 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    
+    impl Cpu {
+        pub fn default() -> Self {
+            Self {
+                reg: Registers::default(),
+                mem: Memory::default(),
+                opcode: 0,
+                address: 0,
+                operand: 0,
+                cycle_count: 0,
+            }
+        }
+    }
+
 
     fn get_cpu_with_mem_ramp() -> Cpu {
         let mut mem = Memory::default();
