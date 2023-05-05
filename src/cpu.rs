@@ -62,7 +62,16 @@ pub struct Cpu {
     /// Current cpu instruction being executed.
     opcode: u8,
 
-    /// Operand for current instruction.
+    /// Address from which the operand (if any) for the current instruction
+    /// is read. Or in the case of instructions that store to memory, this
+    /// is the address to write to. This value is populated for each instruction
+    /// based on the instruction addressing mode. For addressing modes that
+    /// do not read from memory, this address is not used or populated.
+    address: u16,
+
+    /// Operand for current instruction. This may be the immediate value (for
+    /// IMM addressing mode) or a value read from memory. For operands that are
+    /// read from memory, this is the value of the byte at Cpu.address.
     operand: u8,
 
     /// CPU cycle counter
@@ -76,6 +85,7 @@ impl Cpu {
             reg: Registers::default(),
             mem,
             opcode: 0,
+            address: 0,
             operand: 0,
             cycle_count: 0,
         };
@@ -89,6 +99,7 @@ impl Cpu {
             reg: Registers::default(),
             mem: Memory::default(),
             opcode: 0,
+            address: 0,
             operand: 0,
             cycle_count: 0,
         }
@@ -142,23 +153,82 @@ impl Cpu {
         (msb << 8) | lsb
     }
 
+    fn addr_mode_acc(&mut self) {
+        self.operand = self.reg.A;
+    }
+
+    fn addr_mode_imm(&mut self) {
+        self.operand = self.read_byte();
+    }
+
+    fn addr_mode_abs(&mut self) {
+        self.address = self.read_word();
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_abx(&mut self) {
+        self.address = self.read_word().wrapping_add(self.reg.X as u16);
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_aby(&mut self) {
+        self.address = self.read_word().wrapping_add(self.reg.Y as u16);
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_ind(&mut self) {
+        self.address = self.read_word();
+        self.address = self.mem.read_word(self.address);
+    }
+
+    fn addr_mode_izx(&mut self) {
+        let zp_addr = self.read_byte().wrapping_add(self.reg.X);
+        self.address = self.mem.read_word(zp_addr as u16);
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_izy(&mut self) {
+        let zp_addr = self.read_byte();
+        let base_addr = self.mem.read_word(zp_addr as u16);
+        self.address = base_addr.wrapping_add(self.reg.Y as u16);
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_zp(&mut self) {
+        self.address = self.read_byte() as u16;
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_zpx(&mut self) {
+        let zp_addr = self.read_byte().wrapping_add(self.reg.X);
+        self.address = zp_addr as u16;
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_zpy(&mut self) {
+        let zp_addr = self.read_byte().wrapping_add(self.reg.Y);
+        self.address = zp_addr as u16;
+        self.operand = self.mem.read(self.address);
+    }
+
+    fn addr_mode_rel(&mut self) {
+        self.operand = self.read_byte();
+    }
+
     fn fetch_operand(&mut self, addr_mode: &AddrMode) {
         match *addr_mode {
-            AddrMode::IMM => self.operand = self.read_byte(),
-            AddrMode::ABS => {
-                let addr = self.read_word();
-                self.operand = self.mem.read(addr);
-            },
-            AddrMode::ZP => todo!(),
-            AddrMode::IND => todo!(),
-            AddrMode::ABX => todo!(),
-            AddrMode::ABY => todo!(),
-            AddrMode::ZPX => todo!(),
-            AddrMode::ZPY => todo!(),
-            AddrMode::IZX => todo!(),
-            AddrMode::IZY => todo!(),
-            AddrMode::REL => todo!(),
-            AddrMode::ACC => self.operand = self.reg.A,
+            AddrMode::IMM => self.addr_mode_imm(),
+            AddrMode::ABS => self.addr_mode_abs(),
+            AddrMode::ZP  => self.addr_mode_zp(),
+            AddrMode::IND => self.addr_mode_ind(),
+            AddrMode::ABX => self.addr_mode_abx(),
+            AddrMode::ABY => self.addr_mode_aby(),
+            AddrMode::ZPX => self.addr_mode_zpx(),
+            AddrMode::ZPY => self.addr_mode_zpy(),
+            AddrMode::IZX => self.addr_mode_izx(),
+            AddrMode::IZY => self.addr_mode_izy(),
+            AddrMode::REL => self.addr_mode_rel(),
+            AddrMode::ACC => self.addr_mode_acc(),
             AddrMode::IMP => {},
             AddrMode::UNK => {},
         }
