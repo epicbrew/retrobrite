@@ -13,7 +13,7 @@ struct Instruction {
     func: CpuOp,
     addr_mode: AddrMode,
     name: &'static str,
-    cycles: u8,
+    cycles: u64,
 }
 
 /// 6502 Addressing modes.
@@ -74,6 +74,17 @@ pub struct Cpu {
     /// read from memory, this is the value of the byte at Cpu.address.
     operand: u8,
 
+    /// Some instructions incur an additional cycle for crossing a page
+    /// boundary when fetching their operand from memory. This only occurs
+    /// for specific instructions when using ABX, ABY, or IZY addressing
+    /// modes. This field will be set to 1 during operand fetching if a
+    /// page penalty would occur. Instructions that can incur this penalty
+    /// must add it to Cpu.extra_cycles in their execution function.
+    page_penalty: u64,
+
+    /// Extra cycles used by an instruction due to page penalties or branching. 
+    extra_cycles: u64,
+
     /// CPU cycle counter
     cycle_count: u64,
 }
@@ -87,6 +98,8 @@ impl Cpu {
             opcode: 0,
             address: 0,
             operand: 0,
+            page_penalty: 0,
+            extra_cycles: 0,
             cycle_count: 0,
         };
 
@@ -108,10 +121,8 @@ impl Cpu {
         self.reg.P = 0;
     }
 
-    // TODO: pass in a reference to our memory
     pub fn cycle_to(&mut self, cycle: u64) {
         while self.cycle_count < cycle {
-            let _instruction = self.read_byte();
             let cycles_used = self.execute();
             self.cycle_count += cycles_used;
         }
@@ -122,11 +133,13 @@ impl Cpu {
         let idx = self.opcode as usize;
         let instruction = &Cpu::OP_CODES[idx];
 
+        self.page_penalty = 0;
+        self.extra_cycles = 0;
         self.fetch_operand(&instruction.addr_mode);
 
         (instruction.func)(self);
 
-        instruction.cycles as u64
+        instruction.cycles + self.extra_cycles
     }
 
     fn read_byte(&mut self) -> u8 {
@@ -156,12 +169,18 @@ impl Cpu {
     }
 
     fn addr_mode_abx(&mut self) {
-        self.address = self.read_word().wrapping_add(self.reg.X as u16);
+        let base_addres = self.read_word();
+        self.address = base_addres.wrapping_add(self.reg.X as u16);
+        let add_cycles = if utils::same_page(base_addres, self.address) { 0 } else { 1 };
+        self.page_penalty = add_cycles;
         self.operand = self.mem.read(self.address);
     }
 
     fn addr_mode_aby(&mut self) {
-        self.address = self.read_word().wrapping_add(self.reg.Y as u16);
+        let base_addres = self.read_word();
+        self.address = base_addres.wrapping_add(self.reg.Y as u16);
+        let add_cycles = if utils::same_page(base_addres, self.address) { 0 } else { 1 };
+        self.page_penalty = add_cycles;
         self.operand = self.mem.read(self.address);
     }
 
@@ -180,6 +199,8 @@ impl Cpu {
         let zp_addr = self.read_byte();
         let base_addr = self.mem.read_word(zp_addr as u16);
         self.address = base_addr.wrapping_add(self.reg.Y as u16);
+        let add_cycles = if utils::same_page(base_addr, self.address) { 0 } else { 1 };
+        self.page_penalty = add_cycles;
         self.operand = self.mem.read(self.address);
     }
 
@@ -239,12 +260,17 @@ impl Cpu {
         self.set_processor_status_z_flag();
     }
 
+    fn apply_page_penalty(&mut self) {
+        self.extra_cycles = self.page_penalty;
+    }
+
     //
     // CPU Instructions
     //
     fn and(&mut self) {
         self.reg.A &= self.operand;
         self.set_processor_status_nz_flags();
+        self.apply_page_penalty();
     }
 
     fn adc(&mut self) {
@@ -344,9 +370,12 @@ impl Cpu {
     fn eor(&mut self) {
         self.reg.A ^= self.operand;
         self.set_processor_status_nz_flags();
+        self.apply_page_penalty();
     }
 
     fn inc(&mut self) {
+        let mut _value = self.mem.read(self.address);
+        //value = value.wrapping_add(1);
         self.oops();
     }
 
@@ -368,14 +397,17 @@ impl Cpu {
 
     fn lda(&mut self) {
         self.reg.A = self.operand;
+        self.apply_page_penalty();
     }
 
     fn ldx(&mut self) {
         self.reg.X = self.operand;
+        self.apply_page_penalty();
     }
 
     fn ldy(&mut self) {
         self.reg.Y = self.operand;
+        self.apply_page_penalty();
     }
 
     fn lsr(&mut self) {
@@ -389,6 +421,7 @@ impl Cpu {
     fn ora(&mut self) {
         self.reg.A |= self.operand;
         self.set_processor_status_nz_flags();
+        self.apply_page_penalty();
     }
 
     fn pha(&mut self) {
@@ -774,6 +807,8 @@ mod tests {
                 opcode: 0,
                 address: 0,
                 operand: 0,
+                page_penalty: 0,
+                extra_cycles: 0,
                 cycle_count: 0,
             }
         }

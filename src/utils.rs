@@ -18,16 +18,12 @@ pub fn set_bit_from(bit: u8, input: u8, output_value: u8) -> u8 {
     }
 }
 
-//fn set_bit_from(bit: u8, from: u8, operand: u8) -> u8 {
-//    let mask = 1 << bit;
-//    let bit_value = from & mask;
-//    
-//    match bit_value {
-//        0 => { to & !mask }
-//        _ => { to |  mask }
-//    }
-//}
+pub fn same_page(addr1: u16, addr2: u16) -> bool {
+    let addr1_page = addr1 / 256u16;
+    let addr2_page = addr2 / 256u16;
 
+    addr1_page == addr2_page
+}
 
 #[cfg(test)]
 mod tests {
@@ -67,5 +63,13 @@ mod tests {
         assert!(set_bit_from(7, input, output_val) == 0b01110001);
         assert!(set_bit_from(6, input, output_val) == 0b11110001);
         assert!(set_bit_from(2, input, output_val) == 0b11110101);
+    }
+
+    #[test]
+    fn test_same_page() {
+        assert!(same_page(0x0000, 0x00ff));
+        assert!(same_page(0xff00, 0xffff));
+        assert!(!same_page(0xff00, 0xfeff));
+        assert!(!same_page(0x0000, 0x0100));
     }
 }
