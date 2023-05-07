@@ -1,11 +1,28 @@
 #![allow(unused)]
 
+//
+// Processor status flag bits
+//
+
+/// Bit location of processor status carry flag (C).
 pub const PS_C_BIT: u8 = 0;
+
+/// Bit location of processor status zero flag (Z).
 pub const PS_Z_BIT: u8 = 1;
+
+/// Bit location of processor status interupt disable flag (I).
 pub const PS_I_BIT: u8 = 2;
+
+/// Bit location of processor status decimal mode flag (D).
 pub const PS_D_BIT: u8 = 3;
+
+/// Bit location of processor status break flag (B).
 pub const PS_B_BIT: u8 = 4;
+
+/// Bit location of processor status overflow flag (V).
 pub const PS_V_BIT: u8 = 6;
+
+/// Bit location of processor status negative flag (N).
 pub const PS_N_BIT: u8 = 7;
 
 ///// Processor status carry flag mask.

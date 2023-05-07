@@ -244,20 +244,20 @@ impl Cpu {
         }
     }
 
-    fn set_processor_status_n_flag(&mut self) {
-        self.reg.P = utils::set_bit_from(PS_N_BIT, self.reg.A, self.reg.P);
+    fn set_processor_status_n_flag(&mut self, input: u8) {
+        self.reg.P = utils::set_bit_from(PS_N_BIT, input, self.reg.P);
     }
 
-    fn set_processor_status_z_flag(&mut self) {
-        self.reg.P = match self.reg.A {
+    fn set_processor_status_z_flag(&mut self, input: u8) {
+        self.reg.P = match input {
             0 => utils::set_bit(PS_Z_BIT, self.reg.P),
             _ => utils::clear_bit(PS_Z_BIT, self.reg.P),
         };
     }
 
-    fn set_processor_status_nz_flags(&mut self) {
-        self.set_processor_status_n_flag();
-        self.set_processor_status_z_flag();
+    fn set_processor_status_nz_flags(&mut self, input: u8) {
+        self.set_processor_status_n_flag(input);
+        self.set_processor_status_z_flag(input);
     }
 
     fn apply_page_penalty(&mut self) {
@@ -269,7 +269,7 @@ impl Cpu {
     //
     fn and(&mut self) {
         self.reg.A &= self.operand;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
@@ -294,10 +294,8 @@ impl Cpu {
     }
 
     fn bit(&mut self) {
-        let previous_a_value = self.reg.A;
-        self.reg.A &= self.operand;
-        self.set_processor_status_z_flag();
-        self.reg.A = previous_a_value;
+        let and_result = self.reg.A & self.operand;
+        self.set_processor_status_z_flag(and_result);
 
         self.reg.P = utils::set_bit_from(6, self.operand, self.reg.P);
         self.reg.P = utils::set_bit_from(7, self.operand, self.reg.P);
@@ -356,35 +354,43 @@ impl Cpu {
     }
 
     fn dec(&mut self) {
-        self.oops();
+        let mut value = self.mem.read(self.address);
+        value = value.wrapping_sub(1);
+        self.set_processor_status_nz_flags(value);
+        self.mem.write(self.address, value);
     }
 
     fn dex(&mut self) {
-        self.oops();
+        self.reg.X = self.reg.X.wrapping_sub(1);
+        self.set_processor_status_nz_flags(self.reg.X);
     }
 
     fn dey(&mut self) {
-        self.oops();
+        self.reg.Y = self.reg.Y.wrapping_sub(1);
+        self.set_processor_status_nz_flags(self.reg.Y);
     }
 
     fn eor(&mut self) {
         self.reg.A ^= self.operand;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn inc(&mut self) {
-        let mut _value = self.mem.read(self.address);
-        //value = value.wrapping_add(1);
-        self.oops();
+        let mut value = self.mem.read(self.address);
+        value = value.wrapping_add(1);
+        self.set_processor_status_nz_flags(value);
+        self.mem.write(self.address, value);
     }
 
     fn inx(&mut self) {
-        self.oops();
+        self.reg.X = self.reg.X.wrapping_add(1);
+        self.set_processor_status_nz_flags(self.reg.X);
     }
 
     fn iny(&mut self) {
-        self.oops();
+        self.reg.Y = self.reg.Y.wrapping_add(1);
+        self.set_processor_status_nz_flags(self.reg.Y);
     }
 
     fn jmp(&mut self) {
@@ -420,7 +426,7 @@ impl Cpu {
 
     fn ora(&mut self) {
         self.reg.A |= self.operand;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
@@ -486,22 +492,22 @@ impl Cpu {
 
     fn tax(&mut self) {
         self.reg.X = self.reg.A;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.X);
     }
 
     fn tay(&mut self) {
         self.reg.Y = self.reg.A;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.Y);
     }
 
     fn tsx(&mut self) {
         self.reg.X = self.reg.SP;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.X);
     }
 
     fn txa(&mut self) {
         self.reg.A = self.reg.X;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.A);
     }
 
     fn txs(&mut self) {
@@ -510,7 +516,7 @@ impl Cpu {
 
     fn tya(&mut self) {
         self.reg.A = self.reg.Y;
-        self.set_processor_status_nz_flags();
+        self.set_processor_status_nz_flags(self.reg.A);
     }
 
     fn oops(&mut self) {
