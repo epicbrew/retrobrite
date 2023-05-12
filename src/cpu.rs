@@ -67,12 +67,12 @@ pub struct Cpu {
     /// is the address to write to. This value is populated for each instruction
     /// based on the instruction addressing mode. For addressing modes that
     /// do not read from memory, this address is not used or populated.
-    address: u16,
+    operand_address: u16,
 
-    /// Operand for current instruction. This may be the immediate value (for
+    /// Operand value for current instruction. This may be the immediate value (for
     /// IMM addressing mode) or a value read from memory. For operands that are
-    /// read from memory, this is the value of the byte at Cpu.address.
-    operand: u8,
+    /// read from memory, this is the value of the byte at Cpu.operand_address.
+    operand_value: u8,
 
     /// Some instructions incur an additional cycle for crossing a page
     /// boundary when fetching their operand from memory. This only occurs
@@ -96,8 +96,8 @@ impl Cpu {
             reg: Registers::default(),
             mem,
             opcode: 0,
-            address: 0,
-            operand: 0,
+            operand_address: 0,
+            operand_value: 0,
             page_penalty: 0,
             extra_cycles: 0,
             cycle_count: 0,
@@ -156,77 +156,77 @@ impl Cpu {
     }
 
     fn addr_mode_acc(&mut self) {
-        self.operand = self.reg.A;
+        self.operand_value = self.reg.A;
     }
 
     fn addr_mode_imm(&mut self) {
-        self.operand = self.read_byte();
+        self.operand_value = self.read_byte();
     }
 
     fn addr_mode_abs(&mut self) {
-        self.address = self.read_word();
-        self.operand = self.mem.read(self.address);
+        self.operand_address = self.read_word();
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_abx(&mut self) {
         let base_addres = self.read_word();
-        self.address = base_addres.wrapping_add(self.reg.X as u16);
-        let add_cycles = if utils::same_page(base_addres, self.address) { 0 } else { 1 };
+        self.operand_address = base_addres.wrapping_add(self.reg.X as u16);
+        let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand = self.mem.read(self.address);
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_aby(&mut self) {
         let base_addres = self.read_word();
-        self.address = base_addres.wrapping_add(self.reg.Y as u16);
-        let add_cycles = if utils::same_page(base_addres, self.address) { 0 } else { 1 };
+        self.operand_address = base_addres.wrapping_add(self.reg.Y as u16);
+        let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand = self.mem.read(self.address);
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_ind(&mut self) {
-        self.address = self.read_word();
-        self.address = self.mem.read_word(self.address);
+        self.operand_address = self.read_word();
+        self.operand_address = self.mem.read_word(self.operand_address);
     }
 
     fn addr_mode_izx(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.X);
-        self.address = self.mem.read_word(zp_addr as u16);
-        self.operand = self.mem.read(self.address);
+        self.operand_address = self.mem.read_word(zp_addr as u16);
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_izy(&mut self) {
         let zp_addr = self.read_byte();
         let base_addr = self.mem.read_word(zp_addr as u16);
-        self.address = base_addr.wrapping_add(self.reg.Y as u16);
-        let add_cycles = if utils::same_page(base_addr, self.address) { 0 } else { 1 };
+        self.operand_address = base_addr.wrapping_add(self.reg.Y as u16);
+        let add_cycles = if utils::same_page(base_addr, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand = self.mem.read(self.address);
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zp(&mut self) {
-        self.address = self.read_byte() as u16;
-        self.operand = self.mem.read(self.address);
+        self.operand_address = self.read_byte() as u16;
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zpx(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.X);
-        self.address = zp_addr as u16;
-        self.operand = self.mem.read(self.address);
+        self.operand_address = zp_addr as u16;
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zpy(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.Y);
-        self.address = zp_addr as u16;
-        self.operand = self.mem.read(self.address);
+        self.operand_address = zp_addr as u16;
+        self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_rel(&mut self) {
-        self.operand = self.read_byte();
+        self.operand_value = self.read_byte();
     }
 
     fn fetch_operand(&mut self, addr_mode: &AddrMode) {
-        match *addr_mode {
+        match addr_mode {
             AddrMode::IMM => self.addr_mode_imm(),
             AddrMode::ABS => self.addr_mode_abs(),
             AddrMode::ZP  => self.addr_mode_zp(),
@@ -244,20 +244,36 @@ impl Cpu {
         }
     }
 
-    fn set_processor_status_n_flag(&mut self, input: u8) {
+    fn update_processor_status_n_flag(&mut self, input: u8) {
         self.reg.P = utils::set_bit_from(PS_N_BIT, input, self.reg.P);
     }
 
-    fn set_processor_status_z_flag(&mut self, input: u8) {
+    fn update_processor_status_z_flag(&mut self, input: u8) {
         self.reg.P = match input {
             0 => utils::set_bit(PS_Z_BIT, self.reg.P),
             _ => utils::clear_bit(PS_Z_BIT, self.reg.P),
         };
     }
 
-    fn set_processor_status_nz_flags(&mut self, input: u8) {
-        self.set_processor_status_n_flag(input);
-        self.set_processor_status_z_flag(input);
+    fn update_processor_status_nz_flags(&mut self, input: u8) {
+        self.update_processor_status_n_flag(input);
+        self.update_processor_status_z_flag(input);
+    }
+
+    fn set_processor_status_c_flag(&mut self) {
+        self.reg.P = utils::set_bit(PS_C_BIT, self.reg.P);
+    }
+
+    fn clear_processor_status_c_flag(&mut self) {
+        self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
+    }
+
+    fn set_processor_status_v_flag(&mut self) {
+        self.reg.P = utils::set_bit(PS_V_BIT, self.reg.P);
+    }
+
+    fn clear_processor_status_v_flag(&mut self) {
+        self.reg.P = utils::clear_bit(PS_V_BIT, self.reg.P);
     }
 
     fn apply_page_penalty(&mut self) {
@@ -268,13 +284,36 @@ impl Cpu {
     // CPU Instructions
     //
     fn and(&mut self) {
-        self.reg.A &= self.operand;
-        self.set_processor_status_nz_flags(self.reg.A);
+        self.reg.A &= self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn adc(&mut self) {
-        self.oops();
+        let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
+
+        let (u8_result1, u8_overflow1) = self.reg.A.overflowing_add(self.operand_value);
+        let (u8_result2, u8_overflow2) = u8_result1.overflowing_add(carry);
+
+        let reg_a_signed = self.reg.A as i8;
+        let (i8_result1, i8_overflow1) = reg_a_signed.overflowing_add(self.operand_value as i8);
+        let (         _, i8_overflow2) = i8_result1.overflowing_add(carry as i8);
+
+        if u8_overflow1 || u8_overflow2 {
+            self.set_processor_status_c_flag();
+        } else {
+            self.clear_processor_status_c_flag();
+        }
+
+        if i8_overflow1 || i8_overflow2 {
+            self.set_processor_status_v_flag();
+        } else {
+            self.clear_processor_status_v_flag();
+        }
+
+        self.reg.A = u8_result2;
+        self.update_processor_status_nz_flags(self.reg.A);
+        self.apply_page_penalty();
     }
 
     fn asl(&mut self) {
@@ -294,11 +333,11 @@ impl Cpu {
     }
 
     fn bit(&mut self) {
-        let and_result = self.reg.A & self.operand;
-        self.set_processor_status_z_flag(and_result);
+        let and_result = self.reg.A & self.operand_value;
+        self.update_processor_status_z_flag(and_result);
 
-        self.reg.P = utils::set_bit_from(6, self.operand, self.reg.P);
-        self.reg.P = utils::set_bit_from(7, self.operand, self.reg.P);
+        self.reg.P = utils::set_bit_from(6, self.operand_value, self.reg.P);
+        self.reg.P = utils::set_bit_from(7, self.operand_value, self.reg.P);
     }
 
     fn bmi(&mut self) {
@@ -326,19 +365,19 @@ impl Cpu {
     }
 
     fn clc(&mut self) {
-        self.oops();
+        self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
     }
 
     fn cld(&mut self) {
-        self.oops();
+        self.reg.P = utils::clear_bit(PS_D_BIT, self.reg.P);
     }
 
     fn cli(&mut self) {
-        self.oops();
+        self.reg.P = utils::clear_bit(PS_I_BIT, self.reg.P);
     }
 
     fn clv(&mut self) {
-        self.oops();
+        self.reg.P = utils::clear_bit(PS_V_BIT, self.reg.P);
     }
 
     fn cmp(&mut self) {
@@ -354,43 +393,43 @@ impl Cpu {
     }
 
     fn dec(&mut self) {
-        let mut value = self.mem.read(self.address);
+        let mut value = self.mem.read(self.operand_address);
         value = value.wrapping_sub(1);
-        self.set_processor_status_nz_flags(value);
-        self.mem.write(self.address, value);
+        self.update_processor_status_nz_flags(value);
+        self.mem.write(self.operand_address, value);
     }
 
     fn dex(&mut self) {
         self.reg.X = self.reg.X.wrapping_sub(1);
-        self.set_processor_status_nz_flags(self.reg.X);
+        self.update_processor_status_nz_flags(self.reg.X);
     }
 
     fn dey(&mut self) {
         self.reg.Y = self.reg.Y.wrapping_sub(1);
-        self.set_processor_status_nz_flags(self.reg.Y);
+        self.update_processor_status_nz_flags(self.reg.Y);
     }
 
     fn eor(&mut self) {
-        self.reg.A ^= self.operand;
-        self.set_processor_status_nz_flags(self.reg.A);
+        self.reg.A ^= self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn inc(&mut self) {
-        let mut value = self.mem.read(self.address);
+        let mut value = self.mem.read(self.operand_address);
         value = value.wrapping_add(1);
-        self.set_processor_status_nz_flags(value);
-        self.mem.write(self.address, value);
+        self.update_processor_status_nz_flags(value);
+        self.mem.write(self.operand_address, value);
     }
 
     fn inx(&mut self) {
         self.reg.X = self.reg.X.wrapping_add(1);
-        self.set_processor_status_nz_flags(self.reg.X);
+        self.update_processor_status_nz_flags(self.reg.X);
     }
 
     fn iny(&mut self) {
         self.reg.Y = self.reg.Y.wrapping_add(1);
-        self.set_processor_status_nz_flags(self.reg.Y);
+        self.update_processor_status_nz_flags(self.reg.Y);
     }
 
     fn jmp(&mut self) {
@@ -402,17 +441,17 @@ impl Cpu {
     }
 
     fn lda(&mut self) {
-        self.reg.A = self.operand;
+        self.reg.A = self.operand_value;
         self.apply_page_penalty();
     }
 
     fn ldx(&mut self) {
-        self.reg.X = self.operand;
+        self.reg.X = self.operand_value;
         self.apply_page_penalty();
     }
 
     fn ldy(&mut self) {
-        self.reg.Y = self.operand;
+        self.reg.Y = self.operand_value;
         self.apply_page_penalty();
     }
 
@@ -425,8 +464,8 @@ impl Cpu {
     }
 
     fn ora(&mut self) {
-        self.reg.A |= self.operand;
-        self.set_processor_status_nz_flags(self.reg.A);
+        self.reg.A |= self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
@@ -467,47 +506,47 @@ impl Cpu {
     }
 
     fn sec(&mut self) {
-        self.oops();
+        self.reg.P = utils::set_bit(PS_C_BIT, self.reg.P);
     }
 
     fn sed(&mut self) {
-        self.oops();
+        self.reg.P = utils::set_bit(PS_D_BIT, self.reg.P);
     }
 
     fn sei(&mut self) {
-        self.oops();
+        self.reg.P = utils::set_bit(PS_I_BIT, self.reg.P);
     }
 
     fn sta(&mut self) {
-        self.mem.write(self.address, self.reg.A);
+        self.mem.write(self.operand_address, self.reg.A);
     }
 
     fn stx(&mut self) {
-        self.mem.write(self.address, self.reg.X);
+        self.mem.write(self.operand_address, self.reg.X);
     }
 
     fn sty(&mut self) {
-        self.mem.write(self.address, self.reg.Y);
+        self.mem.write(self.operand_address, self.reg.Y);
     }
 
     fn tax(&mut self) {
         self.reg.X = self.reg.A;
-        self.set_processor_status_nz_flags(self.reg.X);
+        self.update_processor_status_nz_flags(self.reg.X);
     }
 
     fn tay(&mut self) {
         self.reg.Y = self.reg.A;
-        self.set_processor_status_nz_flags(self.reg.Y);
+        self.update_processor_status_nz_flags(self.reg.Y);
     }
 
     fn tsx(&mut self) {
         self.reg.X = self.reg.SP;
-        self.set_processor_status_nz_flags(self.reg.X);
+        self.update_processor_status_nz_flags(self.reg.X);
     }
 
     fn txa(&mut self) {
         self.reg.A = self.reg.X;
-        self.set_processor_status_nz_flags(self.reg.A);
+        self.update_processor_status_nz_flags(self.reg.A);
     }
 
     fn txs(&mut self) {
@@ -516,7 +555,7 @@ impl Cpu {
 
     fn tya(&mut self) {
         self.reg.A = self.reg.Y;
-        self.set_processor_status_nz_flags(self.reg.A);
+        self.update_processor_status_nz_flags(self.reg.A);
     }
 
     fn oops(&mut self) {
@@ -811,8 +850,8 @@ mod tests {
                 reg: Registers::default(),
                 mem: Memory::default(),
                 opcode: 0,
-                address: 0,
-                operand: 0,
+                operand_address: 0,
+                operand_value: 0,
                 page_penalty: 0,
                 extra_cycles: 0,
                 cycle_count: 0,
@@ -881,7 +920,7 @@ mod tests {
         cpu.reg.PC = 0x501;
 
         cpu.fetch_operand(&AddrMode::IMM);
-        assert!(cpu.operand == 1);
+        assert!(cpu.operand_value == 1);
     }
 
     #[test]
@@ -892,14 +931,14 @@ mod tests {
         // Should read 0x0302 as the address word from PC
         // The value at 0x0302 should be 2 in the mem ramp.
         cpu.fetch_operand(&AddrMode::ABS);
-        assert!(cpu.operand == 2);
+        assert!(cpu.operand_value == 2);
     }
 
     #[test]
     fn test_and_operation_with_zero_result() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
-        cpu.operand = 0xF0;
+        cpu.operand_value = 0xF0;
         cpu.and();
 
         assert!(cpu.reg.A == 0);
@@ -911,7 +950,7 @@ mod tests {
     fn test_and_operation_with_negative_result() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x81;
-        cpu.operand = 0xF1;
+        cpu.operand_value = 0xF1;
         cpu.and();
 
         assert!(cpu.reg.A == 0x81);
@@ -923,7 +962,7 @@ mod tests {
     fn test_eor_operation() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
-        cpu.operand = 0xFF;
+        cpu.operand_value = 0xFF;
         cpu.eor();
 
         assert!(cpu.reg.A == 0xF0);
@@ -935,11 +974,47 @@ mod tests {
     fn test_ora_operation() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x8F;
-        cpu.operand = 0x71;
+        cpu.operand_value = 0x71;
         cpu.ora();
 
         assert!(cpu.reg.A == 0xFF);
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
+    }
+
+    #[test]
+    fn test_adc_operation() {
+        let mut cpu = Cpu::default();
+
+        cpu.reg.A = 1;
+        cpu.operand_value = 1;
+        cpu.adc();
+        assert!(cpu.reg.A == 2);
+        assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_V_BIT, cpu.reg.P));
+
+        cpu.clc();
+        cpu.reg.A = 1;
+        cpu.operand_value = -1i8 as u8;
+        cpu.adc();
+        assert!(cpu.reg.A == 0);
+        assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_V_BIT, cpu.reg.P));
+
+        cpu.clc();
+        cpu.reg.A = 0x7F;
+        cpu.operand_value = 1;
+        cpu.adc();
+        assert!(cpu.reg.A == 128);
+        assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_V_BIT, cpu.reg.P));
+
+        cpu.clc();
+        cpu.reg.A = 0x80;
+        cpu.operand_value = 0xFF;
+        cpu.adc();
+        assert!(cpu.reg.A == 0x7F);
+        assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_V_BIT, cpu.reg.P));
     }
 }
