@@ -245,13 +245,13 @@ impl Cpu {
     }
 
     fn update_processor_status_n_flag(&mut self, input: u8) {
-        self.reg.P = utils::set_bit_from(PS_N_BIT, input, self.reg.P);
+        utils::set_bit_from(PS_N_BIT, input, &mut self.reg.P);
     }
 
     fn update_processor_status_z_flag(&mut self, input: u8) {
-        self.reg.P = match input {
-            0 => utils::set_bit(PS_Z_BIT, self.reg.P),
-            _ => utils::clear_bit(PS_Z_BIT, self.reg.P),
+        match input {
+            0 => utils::set_bit(PS_Z_BIT, &mut self.reg.P),
+            _ => utils::clear_bit(PS_Z_BIT, &mut self.reg.P),
         };
     }
 
@@ -261,19 +261,19 @@ impl Cpu {
     }
 
     fn set_processor_status_c_flag(&mut self) {
-        self.reg.P = utils::set_bit(PS_C_BIT, self.reg.P);
+        utils::set_bit(PS_C_BIT, &mut self.reg.P);
     }
 
     fn clear_processor_status_c_flag(&mut self) {
-        self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
+        utils::clear_bit(PS_C_BIT, &mut self.reg.P);
     }
 
     fn set_processor_status_v_flag(&mut self) {
-        self.reg.P = utils::set_bit(PS_V_BIT, self.reg.P);
+        utils::set_bit(PS_V_BIT, &mut self.reg.P);
     }
 
     fn clear_processor_status_v_flag(&mut self) {
-        self.reg.P = utils::clear_bit(PS_V_BIT, self.reg.P);
+        utils::clear_bit(PS_V_BIT, &mut self.reg.P);
     }
 
     fn apply_page_penalty(&mut self) {
@@ -349,8 +349,8 @@ impl Cpu {
         let and_result = self.reg.A & self.operand_value;
         self.update_processor_status_z_flag(and_result);
 
-        self.reg.P = utils::set_bit_from(6, self.operand_value, self.reg.P);
-        self.reg.P = utils::set_bit_from(7, self.operand_value, self.reg.P);
+        utils::set_bit_from(6, self.operand_value, &mut self.reg.P);
+        utils::set_bit_from(7, self.operand_value, &mut self.reg.P);
     }
 
     fn bmi(&mut self) {
@@ -378,19 +378,19 @@ impl Cpu {
     }
 
     fn clc(&mut self) {
-        self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
+        utils::clear_bit(PS_C_BIT, &mut self.reg.P);
     }
 
     fn cld(&mut self) {
-        self.reg.P = utils::clear_bit(PS_D_BIT, self.reg.P);
+        utils::clear_bit(PS_D_BIT, &mut self.reg.P);
     }
 
     fn cli(&mut self) {
-        self.reg.P = utils::clear_bit(PS_I_BIT, self.reg.P);
+        utils::clear_bit(PS_I_BIT, &mut self.reg.P);
     }
 
     fn clv(&mut self) {
-        self.reg.P = utils::clear_bit(PS_V_BIT, self.reg.P);
+        utils::clear_bit(PS_V_BIT, &mut self.reg.P);
     }
 
     fn cmp(&mut self) {
@@ -542,15 +542,15 @@ impl Cpu {
     }
 
     fn sec(&mut self) {
-        self.reg.P = utils::set_bit(PS_C_BIT, self.reg.P);
+        utils::set_bit(PS_C_BIT, &mut self.reg.P);
     }
 
     fn sed(&mut self) {
-        self.reg.P = utils::set_bit(PS_D_BIT, self.reg.P);
+        utils::set_bit(PS_D_BIT, &mut self.reg.P);
     }
 
     fn sei(&mut self) {
-        self.reg.P = utils::set_bit(PS_I_BIT, self.reg.P);
+        utils::set_bit(PS_I_BIT, &mut self.reg.P);
     }
 
     fn sta(&mut self) {
