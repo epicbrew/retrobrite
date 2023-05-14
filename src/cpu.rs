@@ -317,6 +317,19 @@ impl Cpu {
     }
 
     fn asl(&mut self) {
+        //if utils::bit_is_set(7, self.operand_value) {
+        //    utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        //} else {
+        //    self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
+        //}
+
+        //let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        //let result = self.operand_value << 1;
+
+        //match instruction.addr_mode {
+        //    AddrMode::ACC => 
+        //}
         self.oops();
     }
 
@@ -502,7 +515,30 @@ impl Cpu {
     }
 
     fn sbc(&mut self) {
-        self.oops();
+        let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 0u8 } else { 1u8 };
+
+        let (u8_result1, u8_overflow1) = self.reg.A.overflowing_sub(self.operand_value);
+        let (u8_result2, u8_overflow2) = u8_result1.overflowing_sub(carry);
+
+        let reg_a_signed = self.reg.A as i8;
+        let (i8_result1, i8_overflow1) = reg_a_signed.overflowing_sub(self.operand_value as i8);
+        let (         _, i8_overflow2) = i8_result1.overflowing_sub(carry as i8);
+
+        if u8_overflow1 || u8_overflow2 {
+            self.clear_processor_status_c_flag();
+        } else {
+            self.set_processor_status_c_flag();
+        }
+
+        if i8_overflow1 || i8_overflow2 {
+            self.set_processor_status_v_flag();
+        } else {
+            self.clear_processor_status_v_flag();
+        }
+
+        self.reg.A = u8_result2;
+        self.update_processor_status_nz_flags(self.reg.A);
+        self.apply_page_penalty();
     }
 
     fn sec(&mut self) {
