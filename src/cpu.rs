@@ -317,20 +317,33 @@ impl Cpu {
     }
 
     fn asl(&mut self) {
-        //if utils::bit_is_set(7, self.operand_value) {
-        //    utils::set_bit(PS_C_BIT, &mut self.reg.P);
-        //} else {
-        //    self.reg.P = utils::clear_bit(PS_C_BIT, self.reg.P);
-        //}
+        // Move bit 7 of operand value into carry flag
+        if utils::bit_is_set(7, self.operand_value) {
+            utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_C_BIT, &mut self.reg.P);
+        }
 
-        //let instruction = &Cpu::OP_CODES[self.opcode as usize];
+        // Do the shift
+        let result = self.operand_value << 1;
 
-        //let result = self.operand_value << 1;
+        // Set Negative flag if bit 7 of result is set
+        if utils::bit_is_set(7, result) {
+            utils::set_bit(PS_N_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_N_BIT, &mut self.reg.P);
+        }
 
-        //match instruction.addr_mode {
-        //    AddrMode::ACC => 
-        //}
-        self.oops();
+        let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        // Put result in A or memory depending on addressing mode
+        match instruction.addr_mode {
+            AddrMode::ACC => self.reg.A = result,
+            _ => self.mem.write(self.operand_address, result),
+        };
+
+        // Set zero flag if A is 0
+        self.update_processor_status_z_flag(self.reg.A);
     }
 
     fn bcc(&mut self) {
@@ -971,7 +984,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_operation_with_zero_result() {
+    fn test_and_with_zero_result() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xF0;
@@ -983,7 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn test_and_operation_with_negative_result() {
+    fn test_and_with_negative_result() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x81;
         cpu.operand_value = 0xF1;
@@ -995,7 +1008,7 @@ mod tests {
     }
 
     #[test]
-    fn test_eor_operation() {
+    fn test_eor() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xFF;
@@ -1007,7 +1020,7 @@ mod tests {
     }
 
     #[test]
-    fn test_ora_operation() {
+    fn test_ora() {
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x8F;
         cpu.operand_value = 0x71;
@@ -1019,7 +1032,7 @@ mod tests {
     }
 
     #[test]
-    fn test_adc_operation() {
+    fn test_adc() {
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 1;
@@ -1052,5 +1065,34 @@ mod tests {
         assert!(cpu.reg.A == 0x7F);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_V_BIT, cpu.reg.P));
+    }
+
+    #[test]
+    fn test_asl() {
+        // This test actually executes a small program to test ASL.
+        let mut cpu = Cpu::default();
+        let test_program: Vec<u8> = vec![
+            OPCODE_LDA_IMM, 0x81,
+            OPCODE_ASL_ACC,
+            OPCODE_STA_ABS, 0xFE, 0x00
+        ];
+
+        let needed_cycles = 
+            Cpu::OP_CODES[OPCODE_LDA_IMM as usize].cycles +
+            Cpu::OP_CODES[OPCODE_ASL_ACC as usize].cycles +
+            Cpu::OP_CODES[OPCODE_STA_ABS as usize].cycles;
+
+        let start_addr = 0xC000;
+        for (offset, value) in test_program.iter().enumerate() {
+            cpu.mem.write(start_addr + offset as u16, *value);
+        }
+
+        cpu.reg.PC = start_addr;
+        cpu.cycle_to(needed_cycles);
+
+        assert!(cpu.mem.read(0x00FE) == 0x02);
+        assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 }
