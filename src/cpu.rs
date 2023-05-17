@@ -406,16 +406,34 @@ impl Cpu {
         utils::clear_bit(PS_V_BIT, &mut self.reg.P);
     }
 
+    fn do_comparison(&mut self, register: u8, mem_value: u8) {
+        if register >= mem_value {
+            utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_C_BIT, &mut self.reg.P);
+        }
+
+        if register == mem_value {
+            utils::set_bit(PS_Z_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_Z_BIT, &mut self.reg.P);
+        }
+
+        let result = register.wrapping_sub(mem_value);
+        utils::set_bit_from(PS_N_BIT, result, &mut self.reg.P);
+    }
+
     fn cmp(&mut self) {
-        self.oops();
+        self.do_comparison(self.reg.A, self.operand_value);
+        self.apply_page_penalty();
     }
 
     fn cpx(&mut self) {
-        self.oops();
+        self.do_comparison(self.reg.X, self.operand_value);
     }
 
     fn cpy(&mut self) {
-        self.oops();
+        self.do_comparison(self.reg.Y, self.operand_value);
     }
 
     fn dec(&mut self) {
@@ -1094,5 +1112,31 @@ mod tests {
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
+    }
+
+    #[test]
+    fn test_cmp() {
+        let mut cpu = Cpu::default();
+
+        cpu.reg.A = 5;
+        cpu.operand_value = 0;
+        cpu.cmp();
+        assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
+
+        cpu.reg.A = 101;
+        cpu.operand_value = 101;
+        cpu.cmp();
+        assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
+
+        cpu.reg.A = 101;
+        cpu.operand_value = 201;
+        cpu.cmp();
+        assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
+        assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
+        assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
 }
