@@ -477,7 +477,7 @@ impl Cpu {
     }
 
     fn jmp(&mut self) {
-        self.oops();
+        self.reg.PC = self.operand_address;
     }
 
     fn jsr(&mut self) {
