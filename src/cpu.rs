@@ -103,22 +103,24 @@ impl Cpu {
             cycle_count: 0,
         };
 
-        new_self.reset();
+        new_self.reg.A = 0;
+        new_self.reg.X = 0;
+        new_self.reg.Y = 0;
+        new_self.reg.PC = new_self.mem.read_word(0xFFFC);
+        new_self.reg.SP = 0xFD;
+        new_self.reg.P = 0x34;
+
         new_self
     }
 
     ///
     /// Reset CPU as if NES reset button was pressed.
-    /// TODO: reset registers to correct values.
-    /// Using powerup state documented here:
+    /// Using reset state documented here:
     ///     https://www.nesdev.org/wiki/CPU_power_up_state
     pub fn reset(&mut self) {
-        self.reg.A = 0;
-        self.reg.X = 0;
-        self.reg.Y = 0;
         self.reg.PC = self.mem.read_word(0xFFFC);
-        self.reg.SP = 0xFD;
-        self.reg.P = 0;
+        self.reg.SP -= 3; 
+        self.reg.P = 0x34; // Not sure if this is correct
     }
 
     pub fn cycle_to(&mut self, cycle: u64) {
@@ -276,8 +278,14 @@ impl Cpu {
         utils::clear_bit(PS_V_BIT, &mut self.reg.P);
     }
 
+    ///
+    /// This function should be called from CPU instruction functions that might
+    /// incur a +1 cycle penalty for crossing a page boundary. Do not call this
+    /// function from other instruction functions that are not affected by page
+    /// boundary crossings.
+    /// 
     fn apply_page_penalty(&mut self) {
-        self.extra_cycles = self.page_penalty;
+        self.extra_cycles += self.page_penalty;
     }
 
     //
@@ -366,16 +374,51 @@ impl Cpu {
         utils::set_bit_from(7, self.operand_value, &mut self.reg.P);
     }
 
+    /// Returns the result of adding a signed relative offset to PC.
+    /// All branch instructions need this calculation.
+    fn get_branch_destination(&self) -> u16 {
+        let relative_offset: i8 = self.operand_value as i8;
+        self.reg.PC.wrapping_add(relative_offset as u16)
+    }
+
+    /// Branch if the specified flag bit (0..7) of P is set.
+    fn branch_if(&mut self, flag_bit: u8) {
+        if utils::bit_is_set(flag_bit, self.reg.P) {
+            self.extra_cycles += 1; // +1 cycle when branch succeeds
+            let dest = self.get_branch_destination();
+
+            if !utils::same_page(dest, self.reg.PC) {
+                self.extra_cycles += 1;
+            }
+
+            self.reg.PC = dest;
+        }
+    }
+
+    /// Branch if the specified flag bit (0..7) of P is clear.
+    fn branch_if_not(&mut self, flag_bit: u8) {
+        if !utils::bit_is_set(flag_bit, self.reg.P) {
+            self.extra_cycles += 1; // +1 cycle when branch succeeds
+            let dest = self.get_branch_destination();
+
+            if !utils::same_page(dest, self.reg.PC) {
+                self.extra_cycles += 1;
+            }
+
+            self.reg.PC = dest;
+        }
+    }
+
     fn bmi(&mut self) {
-        self.oops();
+        self.branch_if(PS_N_BIT);
     }
 
     fn bne(&mut self) {
-        self.oops();
+        self.branch_if_not(PS_Z_BIT);
     }
 
     fn bpl(&mut self) {
-        self.oops();
+        self.branch_if_not(PS_N_BIT);
     }
 
     fn brk(&mut self) {
@@ -383,11 +426,11 @@ impl Cpu {
     }
 
     fn bvc(&mut self) {
-        self.oops();
+        self.branch_if_not(PS_V_BIT);
     }
 
     fn bvs(&mut self) {
-        self.oops();
+        self.branch_if(PS_V_BIT);
     }
 
     fn clc(&mut self) {
@@ -504,7 +547,7 @@ impl Cpu {
     }
 
     fn nop(&mut self) {
-        self.oops();
+        // Does nothing
     }
 
     fn ora(&mut self) {
