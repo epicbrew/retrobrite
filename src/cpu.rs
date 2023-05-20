@@ -556,20 +556,38 @@ impl Cpu {
         self.apply_page_penalty();
     }
 
+    /// Push a value onto the stack.
+    fn stack_push(&mut self, value: u8) {
+        // 6502 implements an "empty" stack, so SP points to next empty slot
+        let push_addr: u16 = 0x0100 + self.reg.SP as u16;
+        self.mem.write(push_addr, value);
+        self.reg.SP -= 1;
+    }
+
+    /// Pull a value from the stack.
+    fn stack_pull(&mut self) -> u8 {
+        // increment SP to point to the top value of the stack
+        self.reg.SP += 1;
+        let pull_addr: u16 = 0x0100 + self.reg.SP as u16;
+
+        self.mem.read(pull_addr)
+    }
+
     fn pha(&mut self) {
-        self.oops();
+        self.stack_push(self.reg.A);
     }
 
     fn php(&mut self) {
-        self.oops();
+        self.stack_push(self.reg.P);
     }
 
     fn pla(&mut self) {
-        self.oops();
+        self.reg.A = self.stack_pull();
+        self.update_processor_status_nz_flags(self.reg.A);
     }
 
     fn plp(&mut self) {
-        self.oops();
+        self.reg.P = self.stack_pull();
     }
 
     fn rol(&mut self) {
