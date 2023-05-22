@@ -561,13 +561,13 @@ impl Cpu {
         // 6502 implements an "empty" stack, so SP points to next empty slot
         let push_addr: u16 = 0x0100 + self.reg.SP as u16;
         self.mem.write(push_addr, value);
-        self.reg.SP -= 1;
+        self.reg.SP = self.reg.SP.wrapping_sub(1);
     }
 
     /// Pull a value from the stack.
     fn stack_pull(&mut self) -> u8 {
         // increment SP to point to the top value of the stack
-        self.reg.SP += 1;
+        self.reg.SP = self.reg.SP.wrapping_add(1);
         let pull_addr: u16 = 0x0100 + self.reg.SP as u16;
 
         self.mem.read(pull_addr)
