@@ -323,6 +323,23 @@ impl Cpu {
         }
     }
 
+    /// Push a value onto the stack.
+    fn stack_push(&mut self, value: u8) {
+        // 6502 implements an "empty" stack, so SP points to next empty slot
+        let push_addr: u16 = 0x0100 + self.reg.SP as u16;
+        self.mem.write(push_addr, value);
+        self.reg.SP = self.reg.SP.wrapping_sub(1);
+    }
+
+    /// Pull a value from the stack.
+    fn stack_pull(&mut self) -> u8 {
+        // increment SP to point to the top value of the stack
+        self.reg.SP = self.reg.SP.wrapping_add(1);
+        let pull_addr: u16 = 0x0100 + self.reg.SP as u16;
+
+        self.mem.read(pull_addr)
+    }
+
     //
     // CPU Instructions
     //
@@ -369,13 +386,7 @@ impl Cpu {
 
         // Do the shift
         let result = self.operand_value << 1;
-
-        // Set Negative flag if bit 7 of result is set
-        if utils::bit_is_set(7, result) {
-            utils::set_bit(PS_N_BIT, &mut self.reg.P);
-        } else {
-            utils::clear_bit(PS_N_BIT, &mut self.reg.P);
-        }
+        self.update_processor_status_nz_flags(result);
 
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
 
@@ -384,9 +395,6 @@ impl Cpu {
             AddrMode::ACC => self.reg.A = result,
             _ => self.mem.write(self.operand_address, result),
         };
-
-        // Set zero flag if A is 0
-        self.update_processor_status_z_flag(self.reg.A);
     }
 
     fn bcc(&mut self) {
@@ -543,7 +551,24 @@ impl Cpu {
     }
 
     fn lsr(&mut self) {
-        self.oops();
+        // Move bit 0 of operand value into carry flag
+        if utils::bit_is_set(0, self.operand_value) {
+            utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_C_BIT, &mut self.reg.P);
+        }
+
+        // Do the shift
+        let result = self.operand_value >> 1;
+        self.update_processor_status_nz_flags(result);
+
+        let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        // Put result in A or memory depending on addressing mode
+        match instruction.addr_mode {
+            AddrMode::ACC => self.reg.A = result,
+            _ => self.mem.write(self.operand_address, result),
+        };
     }
 
     fn nop(&mut self) {
@@ -554,23 +579,6 @@ impl Cpu {
         self.reg.A |= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
-    }
-
-    /// Push a value onto the stack.
-    fn stack_push(&mut self, value: u8) {
-        // 6502 implements an "empty" stack, so SP points to next empty slot
-        let push_addr: u16 = 0x0100 + self.reg.SP as u16;
-        self.mem.write(push_addr, value);
-        self.reg.SP = self.reg.SP.wrapping_sub(1);
-    }
-
-    /// Pull a value from the stack.
-    fn stack_pull(&mut self) -> u8 {
-        // increment SP to point to the top value of the stack
-        self.reg.SP = self.reg.SP.wrapping_add(1);
-        let pull_addr: u16 = 0x0100 + self.reg.SP as u16;
-
-        self.mem.read(pull_addr)
     }
 
     fn pha(&mut self) {
@@ -591,11 +599,59 @@ impl Cpu {
     }
 
     fn rol(&mut self) {
-        self.oops();
+        // Get value for bit 0 from current carry flag value
+        let bit0 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
+
+        // Move bit 7 of operand value into carry flag
+        if utils::bit_is_set(7, self.operand_value) {
+            utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_C_BIT, &mut self.reg.P);
+        }
+
+        // Do the shift
+        let mut result = self.operand_value << 1;
+
+        // Move old carry value into result's bit 0
+        result |= bit0;
+
+        self.update_processor_status_nz_flags(result);
+
+        let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        // Put result in A or memory depending on addressing mode
+        match instruction.addr_mode {
+            AddrMode::ACC => self.reg.A = result,
+            _ => self.mem.write(self.operand_address, result),
+        };
     }
 
     fn ror(&mut self) {
-        self.oops();
+        // Get value for bit 7 from current carry flag value
+        let bit7 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 << 7 } else { 0u8 };
+
+        // Move bit 0 of operand value into carry flag
+        if utils::bit_is_set(0, self.operand_value) {
+            utils::set_bit(PS_C_BIT, &mut self.reg.P);
+        } else {
+            utils::clear_bit(PS_C_BIT, &mut self.reg.P);
+        }
+
+        // Do the shift
+        let mut result = self.operand_value >> 1;
+
+        // Move old carry value into result's bit 0
+        result |= bit7;
+
+        self.update_processor_status_nz_flags(result);
+
+        let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        // Put result in A or memory depending on addressing mode
+        match instruction.addr_mode {
+            AddrMode::ACC => self.reg.A = result,
+            _ => self.mem.write(self.operand_address, result),
+        };
     }
 
     fn rti(&mut self) {
