@@ -1276,4 +1276,41 @@ mod tests {
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
     }
+
+    #[test]
+    fn test_jsr_rts() {
+        let mut cpu = Cpu::default();
+        let test_program: Vec<u8> = vec![
+            OPCODE_JSR_ABS, 0x32, 0xC0,
+            OPCODE_LDA_ABS, 0x00, 0x10
+        ];
+
+        let subroutine: Vec<u8> = vec![
+            OPCODE_LDA_IMM, 0x47,
+            OPCODE_STA_ABS, 0x00, 0x10,
+            OPCODE_RTS
+        ];
+
+        let needed_cycles = 
+            Cpu::OP_CODES[OPCODE_JSR_ABS as usize].cycles +
+            Cpu::OP_CODES[OPCODE_LDA_ABS as usize].cycles +
+            Cpu::OP_CODES[OPCODE_LDA_IMM as usize].cycles +
+            Cpu::OP_CODES[OPCODE_STA_ABS as usize].cycles +
+            Cpu::OP_CODES[OPCODE_RTS as usize].cycles;
+
+        let start_addr = 0xC000;
+        for (offset, value) in test_program.iter().enumerate() {
+            cpu.mem.write(start_addr + offset as u16, *value);
+        }
+
+        let subroutine_addr = 0xC032;
+        for (offset, value) in subroutine.iter().enumerate() {
+            cpu.mem.write(subroutine_addr + offset as u16, *value);
+        }
+
+        cpu.reg.PC = start_addr;
+        cpu.cycle_to(needed_cycles);
+
+        assert!(cpu.reg.A == 0x47);
+    }
 }
