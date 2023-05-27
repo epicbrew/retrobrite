@@ -340,6 +340,19 @@ impl Cpu {
         self.mem.read(pull_addr)
     }
 
+    /// Push u16 value onto stack.
+    fn stack_push_word(&mut self, value: u16) {
+        let le_bytes = value.to_le_bytes();
+        self.stack_push(le_bytes[0]);
+        self.stack_push(le_bytes[1]);
+    }
+
+    fn stack_pull_word(&mut self) -> u16 {
+        let msb = self.stack_pull();
+        let lsb = self.stack_pull();
+        u16::from_le_bytes([lsb, msb])
+    }
+
     //
     // CPU Instructions
     //
@@ -430,7 +443,10 @@ impl Cpu {
     }
 
     fn brk(&mut self) {
-        self.oops();
+        self.stack_push_word(self.reg.PC);
+        self.stack_push(self.reg.P);
+        self.reg.PC = self.mem.read_word(0xFFFE);
+        utils::set_bit(PS_B_BIT, &mut self.reg.P);
     }
 
     fn bvc(&mut self) {
@@ -532,7 +548,9 @@ impl Cpu {
     }
 
     fn jsr(&mut self) {
-        self.oops();
+        let return_addr = self.reg.PC - 1;
+        self.stack_push_word(return_addr);
+        self.reg.PC = self.operand_address;
     }
 
     fn lda(&mut self) {
@@ -655,11 +673,13 @@ impl Cpu {
     }
 
     fn rti(&mut self) {
-        self.oops();
+        self.reg.P = self.stack_pull();
+        self.reg.PC = self.stack_pull_word();
     }
 
     fn rts(&mut self) {
-        self.oops();
+        self.reg.PC = self.stack_pull_word();
+        self.reg.PC += 1;
     }
 
     fn sbc(&mut self) {
