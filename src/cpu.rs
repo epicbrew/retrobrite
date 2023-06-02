@@ -87,6 +87,9 @@ pub struct Cpu {
 
     /// CPU cycle counter
     cycle_count: u64,
+
+    /// Bookkeeping vec that keeps track of the bytes consumed for each instruction.
+    bytes_consumed: Vec<u8>,
 }
 
 impl Cpu {
@@ -100,7 +103,8 @@ impl Cpu {
             operand_value: 0,
             page_penalty: 0,
             extra_cycles: 0,
-            cycle_count: 0,
+            cycle_count: 7,
+            bytes_consumed: Vec::new(),
         };
 
         new_self.reg.A = 0;
@@ -131,6 +135,13 @@ impl Cpu {
     }
 
     fn execute(&mut self) -> u64 {
+        // Clear our bookkeeping vector
+        self.bytes_consumed.clear();
+
+        // Save the address the next instruction will be read from for logging
+        let instruction_address = self.reg.PC;
+
+        // Read next opcode
         self.opcode = self.read_byte();
         let idx = self.opcode as usize;
         let instruction = &Cpu::OP_CODES[idx];
@@ -139,13 +150,47 @@ impl Cpu {
         self.extra_cycles = 0;
         self.fetch_operand(&instruction.addr_mode);
 
+        self.print_log_line(instruction, instruction_address);
+
+        // Execute 
         (instruction.func)(self);
 
-        instruction.cycles + self.extra_cycles
+        let total_cycles = instruction.cycles + self.extra_cycles;
+
+        total_cycles
+    }
+
+    fn print_log_line(&self, instruction: &Instruction, address: u16) {
+        let mut log_line = format!("{:04X}", address);
+
+        for b in self.bytes_consumed.iter() {
+            let b = format!("{:02X}", b);
+            log_line.push_str(" ");
+            log_line.push_str(&b);
+        }
+
+        let pad = 17 - log_line.len() - 2;
+        let pad = format!("{:<pad$}", " ");
+
+        log_line.push_str(&pad);
+        log_line.push_str(instruction.name);
+
+        let register_status = format!("A:{:02X} X:{:02X} Y:{:02X} P:{:02X} SP:{:02X} PPU:{:>3},{:>3} CYC:{}",
+                                      self.reg.A, self.reg.X, self.reg.Y, self.reg.P, self.reg.SP,
+                                      10, 100, self.cycle_count);
+
+        let pad = 49 - log_line.len() - 2;
+        let pad = format!("{:<pad$}", " ");
+        log_line.push_str(&pad);
+
+        log_line.push_str(&register_status);
+
+        debug!("{}", log_line);
     }
 
     fn read_byte(&mut self) -> u8 {
         let next_byte = self.mem.read(self.reg.PC);
+        self.bytes_consumed.push(next_byte);
         self.reg.PC += 1;
         next_byte
     }
@@ -1059,6 +1104,7 @@ mod tests {
                 page_penalty: 0,
                 extra_cycles: 0,
                 cycle_count: 0,
+                bytes_consumed: Vec::new(),
             }
         }
     }
@@ -1279,6 +1325,8 @@ mod tests {
 
     #[test]
     fn test_jsr_rts() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let mut cpu = Cpu::default();
         let test_program: Vec<u8> = vec![
             OPCODE_JSR_ABS, 0x32, 0xC0,
