@@ -121,17 +121,28 @@ impl Cpu {
     /// Reset CPU as if NES reset button was pressed.
     /// Using reset state documented here:
     ///     https://www.nesdev.org/wiki/CPU_power_up_state
+    /// 
     pub fn reset(&mut self) {
         self.reg.PC = self.mem.read_word(0xFFFC);
         self.reg.SP -= 3; 
         self.reg.P = 0x34; // Not sure if this is correct
     }
 
+    ///
+    /// Execute until to (or slightly beyond) the given cycle number.
+    /// Note the CPU may overshoot the given cycle number by the amount of
+    /// cycles used by the last instruction.
+    /// 
     pub fn cycle_to(&mut self, cycle: u64) {
         while self.cycle_count < cycle {
             let cycles_used = self.execute();
             self.cycle_count += cycles_used;
         }
+    }
+
+    /// Sets the program counter to the given value (for debug/testing).
+    pub fn set_program_counter(&mut self, addr: u16) {
+        self.reg.PC = addr;
     }
 
     fn execute(&mut self) -> u64 {
@@ -1124,20 +1135,6 @@ mod tests {
         cpu
     }
 
-    //#[test]
-    //fn test_cpu_read_byte2() {
-    //    let pc = 0x1000;
-    //    let expected: u8 = 42;
-
-    //    let mut cpu = get_cpu();
-    //    cpu.reg.PC = pc;
-    //    cpu.mem.write(pc, 42);
-
-    //    let byte_read = cpu.read_byte();
-
-    //    assert!(byte_read == expected);
-    //}
-
     #[test]
     fn test_cpu_read_byte() {
         let pc = 0x400; // address 1024 in decimal, page 4
@@ -1284,10 +1281,8 @@ mod tests {
             Cpu::OP_CODES[OPCODE_STA_ABS as usize].cycles;
 
         let start_addr = 0xC000;
-        for (offset, value) in test_program.iter().enumerate() {
-            cpu.mem.write(start_addr + offset as u16, *value);
-        }
 
+        cpu.mem.load(start_addr, &test_program);
         cpu.reg.PC = start_addr;
         cpu.cycle_to(needed_cycles);
 
@@ -1347,14 +1342,8 @@ mod tests {
             Cpu::OP_CODES[OPCODE_RTS as usize].cycles;
 
         let start_addr = 0xC000;
-        for (offset, value) in test_program.iter().enumerate() {
-            cpu.mem.write(start_addr + offset as u16, *value);
-        }
-
-        let subroutine_addr = 0xC032;
-        for (offset, value) in subroutine.iter().enumerate() {
-            cpu.mem.write(subroutine_addr + offset as u16, *value);
-        }
+        cpu.mem.load(start_addr, &test_program);
+        cpu.mem.load(start_addr + 0x32, &subroutine);
 
         cpu.reg.PC = start_addr;
         cpu.cycle_to(needed_cycles);

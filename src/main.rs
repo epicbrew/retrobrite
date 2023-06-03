@@ -1,7 +1,10 @@
 #[macro_use]
 extern crate log;
+extern crate clap;
+
 use std::time::{Instant, Duration};
 use std::thread::sleep;
+use clap::Parser;
 
 mod utils;
 mod cpu;
@@ -15,8 +18,26 @@ const CLOCK_DIVISOR: u64 = 12;
 const CPU_FREQ: u64 = MASTER_CLOCK_HZ / CLOCK_DIVISOR;
 const NS_PER_CYCLE: u64 = (1.0 / CPU_FREQ as f64 * 1e9) as u64;
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Rom file to load (ines format only).
+    rom: String,
+
+    /// Initialize program counter to given u16 value (for debug/testing).
+    #[arg(long)]
+    pc: u16,
+}
+
 fn main() {
     env_logger::init();
+
+    let cli = Cli::parse();
+
+    let memory = Memory::default();
+    let mut cpu = Cpu::new(memory);
+
+    cpu.reset();
 
     let cycle_batch = 42;
     let mut cycle = 0;
@@ -27,11 +48,6 @@ fn main() {
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
-
-    let memory = Memory::default();
-    let mut cpu = Cpu::new(memory);
-
-    cpu.reset();
 
     loop {
         cycle += cycle_batch;
