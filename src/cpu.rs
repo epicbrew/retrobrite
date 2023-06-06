@@ -112,7 +112,7 @@ impl Cpu {
         new_self.reg.Y = 0;
         new_self.reg.PC = new_self.mem.read_word(0xFFFC);
         new_self.reg.SP = 0xFD;
-        new_self.reg.P = 0x34;
+        new_self.reg.P = 0x24;
 
         new_self
     }
@@ -611,16 +611,19 @@ impl Cpu {
 
     fn lda(&mut self) {
         self.reg.A = self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn ldx(&mut self) {
         self.reg.X = self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.X);
         self.apply_page_penalty();
     }
 
     fn ldy(&mut self) {
         self.reg.Y = self.operand_value;
+        self.update_processor_status_nz_flags(self.reg.Y);
         self.apply_page_penalty();
     }
 

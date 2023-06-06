@@ -1,10 +1,14 @@
 #[macro_use]
 extern crate log;
 extern crate clap;
+extern crate ines;
 
 use std::time::{Instant, Duration};
 use std::thread::sleep;
+use std::path::{PathBuf, Path};
+use std::fs;
 use clap::Parser;
+use ines::Ines;
 
 mod utils;
 mod cpu;
@@ -22,11 +26,40 @@ const NS_PER_CYCLE: u64 = (1.0 / CPU_FREQ as f64 * 1e9) as u64;
 #[command(author, version, about, long_about = None)]
 struct Cli {
     /// Rom file to load (ines format only).
-    rom: String,
+    rom: Option<PathBuf>,
 
-    /// Initialize program counter to given u16 value (for debug/testing).
+    /// Start program counter at given value (for debug/testing).
     #[arg(long)]
-    pc: u16,
+    pc: Option<u16>,
+
+    /// Number of CPU cycles to run (for debug/testing).
+    #[arg(long, short)]
+    cycles: Option<u64>,
+
+    /// Print information about a ROM and exit.
+    #[arg(long, short('i'))]
+    rom_info: bool,
+}
+
+fn parse_rom_file(rom_path: &Path) -> Ines {
+    let file_data = fs::read(&rom_path).expect("could not read rom file");
+
+    match Ines::parse(&file_data) {
+        Ok(ines) => ines,
+        Err(why) => match why {
+            ines::Error::UnimplementedMapper { code } => {
+                 panic!("unimplemented mapper: {}", code)
+            }
+        }
+    }
+}
+
+fn load_prg_rom(memory: &mut Memory, ines: &Ines) {
+    memory.load(0x8000, &ines.prg_rom);
+
+    if ines.header.num_prg_rom_blocks == 1 {
+        memory.load(0xC000, &ines.prg_rom);
+    }
 }
 
 fn main() {
@@ -34,10 +67,28 @@ fn main() {
 
     let cli = Cli::parse();
 
-    let memory = Memory::default();
+    let rom_path = cli.rom.expect("No rom specifiec (try --help)");
+    let ines_file = parse_rom_file(rom_path.as_path());
+
+    if cli.rom_info {
+        println!("Rom file: {}", rom_path.display());
+        println!("{:?}", ines_file.header);
+        std::process::exit(0);
+    }
+
+    let mut memory = Memory::default();
+
+    load_prg_rom(&mut memory, &ines_file);
+
+    info!("reset vector: {:04X}", memory.read_word(0xFFFC));
+
     let mut cpu = Cpu::new(memory);
 
-    cpu.reset();
+    //cpu.reset();
+
+    if let Some(pc) = cli.pc.as_ref() {
+        cpu.set_program_counter(*pc);
+    }
 
     let cycle_batch = 42;
     let mut cycle = 0;
@@ -69,5 +120,12 @@ fn main() {
             last_report = Instant::now();
             cycles_this_second = 0;
         }
+
+        if let Some(cycles_to_run) = cli.cycles.as_ref() {
+            if cycle >= *cycles_to_run {
+                break;
+            }
+        }
+
     }
 }
