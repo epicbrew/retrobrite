@@ -122,7 +122,7 @@ impl Cpu {
     /// Using reset state documented here:
     ///     https://www.nesdev.org/wiki/CPU_power_up_state
     /// 
-    pub fn reset(&mut self) {
+    pub fn _reset(&mut self) {
         self.reg.PC = self.mem.read_word(0xFFFC);
         self.reg.SP -= 3; 
         self.reg.P = 0x34; // Not sure if this is correct
@@ -399,14 +399,25 @@ impl Cpu {
     /// Push u16 value onto stack.
     fn stack_push_word(&mut self, value: u16) {
         let le_bytes = value.to_le_bytes();
-        self.stack_push(le_bytes[0]);
         self.stack_push(le_bytes[1]);
+        self.stack_push(le_bytes[0]);
     }
 
     fn stack_pull_word(&mut self) -> u16 {
-        let msb = self.stack_pull();
         let lsb = self.stack_pull();
+        let msb = self.stack_pull();
         u16::from_le_bytes([lsb, msb])
+    }
+
+    /// Helper function that sets P from stack while disregarding bits 4 and 5.
+    fn set_p_from_stack(&mut self) {
+        let stack_value = self.stack_pull();
+        utils::set_bit_from(0, stack_value, &mut self.reg.P);
+        utils::set_bit_from(1, stack_value, &mut self.reg.P);
+        utils::set_bit_from(2, stack_value, &mut self.reg.P);
+        utils::set_bit_from(3, stack_value, &mut self.reg.P);
+        utils::set_bit_from(6, stack_value, &mut self.reg.P);
+        utils::set_bit_from(7, stack_value, &mut self.reg.P);
     }
 
     //
@@ -500,7 +511,12 @@ impl Cpu {
 
     fn brk(&mut self) {
         self.stack_push_word(self.reg.PC);
-        self.stack_push(self.reg.P);
+
+        let mut p_val = self.reg.P;
+        utils::set_bit(4, &mut p_val);
+        utils::set_bit(5, &mut p_val);
+        self.stack_push(p_val);
+
         self.reg.PC = self.mem.read_word(0xFFFE);
         utils::set_bit(PS_B_BIT, &mut self.reg.P);
     }
@@ -663,7 +679,10 @@ impl Cpu {
     }
 
     fn php(&mut self) {
-        self.stack_push(self.reg.P);
+        let mut p_val = self.reg.P;
+        utils::set_bit(4, &mut p_val);
+        utils::set_bit(5, &mut p_val);
+        self.stack_push(p_val);
     }
 
     fn pla(&mut self) {
@@ -672,7 +691,7 @@ impl Cpu {
     }
 
     fn plp(&mut self) {
-        self.reg.P = self.stack_pull();
+        self.set_p_from_stack();
     }
 
     fn rol(&mut self) {
@@ -732,7 +751,7 @@ impl Cpu {
     }
 
     fn rti(&mut self) {
-        self.reg.P = self.stack_pull();
+        self.set_p_from_stack();
         self.reg.PC = self.stack_pull_word();
     }
 
