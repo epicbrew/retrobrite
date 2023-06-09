@@ -264,7 +264,16 @@ impl Cpu {
 
     fn addr_mode_izy(&mut self) {
         let zp_addr = self.read_byte();
-        let base_addr = self.mem.read_word(zp_addr as u16);
+        let base_addr = if zp_addr == 0xFF {
+            // Need to wrap around the zero page boundary to read memory address
+            // from 0x00FF and 0x0000 
+            let lsb = self.mem.read(zp_addr as u16);
+            let msb = self.mem.read(0x00);
+            u16::from_le_bytes([lsb, msb])
+        }
+        else {
+            self.mem.read_word(zp_addr as u16)
+        };
         self.operand_address = base_addr.wrapping_add(self.reg.Y as u16);
         let add_cycles = if utils::same_page(base_addr, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
