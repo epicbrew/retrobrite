@@ -249,7 +249,16 @@ impl Cpu {
 
     fn addr_mode_izx(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.X);
-        self.operand_address = self.mem.read_word(zp_addr as u16);
+
+        if zp_addr == 0xFF {
+            // Need to wrap around the zero page boundary to read memory address
+            // from 0x00FF and 0x0000 
+            let lsb = self.mem.read(zp_addr as u16);
+            let msb = self.mem.read(0x00);
+            self.operand_address = u16::from_le_bytes([lsb, msb]);
+        } else {
+            self.operand_address = self.mem.read_word(zp_addr as u16);
+        }
         self.operand_value = self.mem.read(self.operand_address);
     }
 
