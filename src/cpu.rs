@@ -243,8 +243,24 @@ impl Cpu {
     }
 
     fn addr_mode_ind(&mut self) {
-        self.operand_address = self.read_word();
-        self.operand_address = self.mem.read_word(self.operand_address);
+        //
+        // The following mimics a bug in the 6502 as described by the obelisk
+        // 6502 reference as: "An original 6502 has does not correctly fetch the target 
+        // address if the indirect vector falls on a page boundary (e.g. $xxFF where xx
+        // is any value from $00 to $FF). In this case fetches the LSB from $xxFF as
+        // expected but takes the MSB from $xx00."
+        //
+        let lsb_addr = self.read_word();
+        let msb_addr = if lsb_addr & 0x00FF == 0x00FF {
+            lsb_addr & 0xFF00
+        } else {
+            lsb_addr + 1
+        };
+
+        let target_lsb = self.mem.read(lsb_addr);
+        let target_msb = self.mem.read(msb_addr);
+
+        self.operand_address = u16::from_le_bytes([target_lsb, target_msb]);
     }
 
     fn addr_mode_izx(&mut self) {
