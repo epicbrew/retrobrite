@@ -815,6 +815,11 @@ impl Cpu {
         self.reg.PC += 1;
     }
 
+    fn sax(&mut self) {
+        let result = self.reg.A & self.reg.X;
+        self.mem.write(self.operand_address, result);
+    }
+
     fn sbc(&mut self) {
         let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 0u8 } else { 1u8 };
 
@@ -1045,11 +1050,11 @@ impl Cpu {
         Instruction {opcode: 0x80, func: Cpu::nop,  addr_mode: AddrMode::IMM, name: "NOP", cycles: 2, legal: false },
         Instruction {opcode: 0x81, func: Cpu::sta,  addr_mode: AddrMode::IZX, name: "STA", cycles: 6, legal: true },
         Instruction {opcode: 0x82, func: Cpu::nop,  addr_mode: AddrMode::IMM, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0x83, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "SAX", cycles: 6, legal: false },
+        Instruction {opcode: 0x83, func: Cpu::sax,  addr_mode: AddrMode::IZX, name: "SAX", cycles: 6, legal: false },
         Instruction {opcode: 0x84, func: Cpu::sty,  addr_mode: AddrMode::ZP,  name: "STY", cycles: 3, legal: true },
         Instruction {opcode: 0x85, func: Cpu::sta,  addr_mode: AddrMode::ZP,  name: "STA", cycles: 3, legal: true },
         Instruction {opcode: 0x86, func: Cpu::stx,  addr_mode: AddrMode::ZP,  name: "STX", cycles: 3, legal: true },
-        Instruction {opcode: 0x87, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "SAX", cycles: 3, legal: false },
+        Instruction {opcode: 0x87, func: Cpu::sax,  addr_mode: AddrMode::ZP,  name: "SAX", cycles: 3, legal: false },
         Instruction {opcode: 0x88, func: Cpu::dey,  addr_mode: AddrMode::IMP, name: "DEY", cycles: 2, legal: true },
         Instruction {opcode: 0x89, func: Cpu::nop,  addr_mode: AddrMode::IMM, name: "NOP", cycles: 2, legal: false },
         Instruction {opcode: 0x8A, func: Cpu::txa,  addr_mode: AddrMode::IMP, name: "TXA", cycles: 2, legal: true },
@@ -1057,7 +1062,7 @@ impl Cpu {
         Instruction {opcode: 0x8C, func: Cpu::sty,  addr_mode: AddrMode::ABS, name: "STY", cycles: 4, legal: true },
         Instruction {opcode: 0x8D, func: Cpu::sta,  addr_mode: AddrMode::ABS, name: "STA", cycles: 4, legal: true },
         Instruction {opcode: 0x8E, func: Cpu::stx,  addr_mode: AddrMode::ABS, name: "STX", cycles: 4, legal: true },
-        Instruction {opcode: 0x8F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "SAX", cycles: 4, legal: false },
+        Instruction {opcode: 0x8F, func: Cpu::sax,  addr_mode: AddrMode::ABS, name: "SAX", cycles: 4, legal: false },
 
         Instruction {opcode: 0x90, func: Cpu::bcc,  addr_mode: AddrMode::REL, name: "BCC", cycles: 2, legal: true },
         Instruction {opcode: 0x91, func: Cpu::sta,  addr_mode: AddrMode::IZY, name: "STA", cycles: 6, legal: true },
@@ -1066,7 +1071,7 @@ impl Cpu {
         Instruction {opcode: 0x94, func: Cpu::sty,  addr_mode: AddrMode::ZPX, name: "STY", cycles: 4, legal: true },
         Instruction {opcode: 0x95, func: Cpu::sta,  addr_mode: AddrMode::ZPX, name: "STA", cycles: 4, legal: true },
         Instruction {opcode: 0x96, func: Cpu::stx,  addr_mode: AddrMode::ZPY, name: "STX", cycles: 4, legal: true },
-        Instruction {opcode: 0x97, func: Cpu::oops, addr_mode: AddrMode::ZPY, name: "SAX", cycles: 4, legal: false },
+        Instruction {opcode: 0x97, func: Cpu::sax,  addr_mode: AddrMode::ZPY, name: "SAX", cycles: 4, legal: false },
         Instruction {opcode: 0x98, func: Cpu::tya,  addr_mode: AddrMode::IMP, name: "TYA", cycles: 2, legal: true },
         Instruction {opcode: 0x99, func: Cpu::sta,  addr_mode: AddrMode::ABY, name: "STA", cycles: 5, legal: true },
         Instruction {opcode: 0x9A, func: Cpu::txs,  addr_mode: AddrMode::IMP, name: "TXS", cycles: 2, legal: true },
