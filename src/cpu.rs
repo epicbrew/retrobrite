@@ -669,6 +669,14 @@ impl Cpu {
         self.update_processor_status_nz_flags(self.reg.Y);
     }
 
+    fn isb(&mut self) {
+        self.inc();
+        self.operand_value = self.mem.read(self.operand_address);
+        self.sbc();
+        // This instruction does not suffer a page penalty
+        self.extra_cycles -= self.page_penalty;
+    }
+
     fn jmp(&mut self) {
         self.reg.PC = self.operand_address;
     }
@@ -1161,11 +1169,11 @@ impl Cpu {
         Instruction {opcode: 0xE0, func: Cpu::cpx,  addr_mode: AddrMode::IMM, name: "CPX", cycles: 2, legal: true },
         Instruction {opcode: 0xE1, func: Cpu::sbc,  addr_mode: AddrMode::IZX, name: "SBC", cycles: 6, legal: true },
         Instruction {opcode: 0xE2, func: Cpu::nop,  addr_mode: AddrMode::IMM, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0xE3, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "ISC", cycles: 8, legal: false },
+        Instruction {opcode: 0xE3, func: Cpu::isb,  addr_mode: AddrMode::IZX, name: "ISB", cycles: 8, legal: false },
         Instruction {opcode: 0xE4, func: Cpu::cpx,  addr_mode: AddrMode::ZP,  name: "CPX", cycles: 3, legal: true },
         Instruction {opcode: 0xE5, func: Cpu::sbc,  addr_mode: AddrMode::ZP,  name: "SBC", cycles: 3, legal: true },
         Instruction {opcode: 0xE6, func: Cpu::inc,  addr_mode: AddrMode::ZP,  name: "INC", cycles: 5, legal: true },
-        Instruction {opcode: 0xE7, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "ISC", cycles: 5, legal: false },
+        Instruction {opcode: 0xE7, func: Cpu::isb,  addr_mode: AddrMode::ZP,  name: "ISB", cycles: 5, legal: false },
         Instruction {opcode: 0xE8, func: Cpu::inx,  addr_mode: AddrMode::IMP, name: "INX", cycles: 2, legal: true },
         Instruction {opcode: 0xE9, func: Cpu::sbc,  addr_mode: AddrMode::IMM, name: "SBC", cycles: 2, legal: true },
         Instruction {opcode: 0xEA, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: true },
@@ -1173,24 +1181,24 @@ impl Cpu {
         Instruction {opcode: 0xEC, func: Cpu::cpx,  addr_mode: AddrMode::ABS, name: "CPX", cycles: 4, legal: true },
         Instruction {opcode: 0xED, func: Cpu::sbc,  addr_mode: AddrMode::ABS, name: "SBC", cycles: 4, legal: true },
         Instruction {opcode: 0xEE, func: Cpu::inc,  addr_mode: AddrMode::ABS, name: "INC", cycles: 6, legal: true },
-        Instruction {opcode: 0xEF, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "ISC", cycles: 6, legal: false },
+        Instruction {opcode: 0xEF, func: Cpu::isb,  addr_mode: AddrMode::ABS, name: "ISB", cycles: 6, legal: false },
 
         Instruction {opcode: 0xF0, func: Cpu::beq,  addr_mode: AddrMode::REL, name: "BEQ", cycles: 2, legal: true },
         Instruction {opcode: 0xF1, func: Cpu::sbc,  addr_mode: AddrMode::IZY, name: "SBC", cycles: 5, legal: true },
         Instruction {opcode: 0xF2, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0xF3, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "ISC", cycles: 8, legal: false },
+        Instruction {opcode: 0xF3, func: Cpu::isb,  addr_mode: AddrMode::IZY, name: "ISB", cycles: 8, legal: false },
         Instruction {opcode: 0xF4, func: Cpu::nop,  addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0xF5, func: Cpu::sbc,  addr_mode: AddrMode::ZPX, name: "SBC", cycles: 4, legal: true },
         Instruction {opcode: 0xF6, func: Cpu::inc,  addr_mode: AddrMode::ZPX, name: "INC", cycles: 6, legal: true },
-        Instruction {opcode: 0xF7, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "ISC", cycles: 6, legal: false },
+        Instruction {opcode: 0xF7, func: Cpu::isb,  addr_mode: AddrMode::ZPX, name: "ISB", cycles: 6, legal: false },
         Instruction {opcode: 0xF8, func: Cpu::sed,  addr_mode: AddrMode::IMP, name: "SED", cycles: 2, legal: true },
         Instruction {opcode: 0xF9, func: Cpu::sbc,  addr_mode: AddrMode::ABY, name: "SBC", cycles: 4, legal: true },
         Instruction {opcode: 0xFA, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0xFB, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "ISC", cycles: 7, legal: false },
+        Instruction {opcode: 0xFB, func: Cpu::isb,  addr_mode: AddrMode::ABY, name: "ISB", cycles: 7, legal: false },
         Instruction {opcode: 0xFC, func: Cpu::nop,  addr_mode: AddrMode::ABX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0xFD, func: Cpu::sbc,  addr_mode: AddrMode::ABX, name: "SBC", cycles: 4, legal: true },
         Instruction {opcode: 0xFE, func: Cpu::inc,  addr_mode: AddrMode::ABX, name: "INC", cycles: 7, legal: true },
-        Instruction {opcode: 0xFF, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "ISC", cycles: 7, legal: false },
+        Instruction {opcode: 0xFF, func: Cpu::isb,  addr_mode: AddrMode::ABX, name: "ISB", cycles: 7, legal: false },
     ];
 }
 
