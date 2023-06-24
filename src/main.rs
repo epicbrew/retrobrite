@@ -84,14 +84,18 @@ fn main() {
 
     let mut cpu = Cpu::new(memory);
 
-    //cpu.reset();
+    let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
+        *cycles_to_run
+    } else {
+        0
+    };
 
     if let Some(pc) = cli.pc.as_ref() {
         cpu.set_program_counter(*pc);
     }
 
     let cycle_batch = 42;
-    let mut cycle = 0;
+    let mut cycle = 7;
     let mut cycles_this_second = 0;
     let startup_time = Instant::now();
     let mut last_report = Instant::now();
@@ -103,6 +107,11 @@ fn main() {
     loop {
         cycle += cycle_batch;
         cycles_this_second += cycle_batch;
+
+        // Clip cycle to max_cycles if necessary
+        if max_cycles > 0 && cycle > max_cycles {
+            cycle = max_cycles;
+        }
 
         cpu.cycle_to(cycle);
 
@@ -121,11 +130,14 @@ fn main() {
             cycles_this_second = 0;
         }
 
-        if let Some(cycles_to_run) = cli.cycles.as_ref() {
-            if cycle >= *cycles_to_run {
-                break;
-            }
+        if max_cycles > 0 && cycle >= max_cycles {
+            break;
         }
+        //if let Some(cycles_to_run) = cli.cycles.as_ref() {
+        //    if cycle >= *cycles_to_run {
+        //        break;
+        //    }
+        //}
 
     }
 }
