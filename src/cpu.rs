@@ -673,7 +673,8 @@ impl Cpu {
         self.inc();
         self.operand_value = self.mem.read(self.operand_address);
         self.sbc();
-        // This instruction does not suffer a page penalty
+        // This instruction does not suffer a page penalty, but sbc()
+        // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
@@ -766,6 +767,15 @@ impl Cpu {
         self.set_p_from_stack();
     }
 
+    fn rla(&mut self) {
+        self.rol();
+        self.operand_value = self.mem.read(self.operand_address);
+        self.and();
+        // This instruction does not suffer a page penalty, but and()
+        // adds it in, so subtract it back off here.
+        self.extra_cycles -= self.page_penalty;
+    }
+
     fn rol(&mut self) {
         // Get value for bit 0 from current carry flag value
         let bit0 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
@@ -822,6 +832,15 @@ impl Cpu {
         };
     }
 
+    fn rra(&mut self) {
+        self.ror();
+        self.operand_value = self.mem.read(self.operand_address);
+        self.adc();
+        // This instruction does not suffer a page penalty, but adc()
+        // adds it in, so subtract it back off here.
+        self.extra_cycles -= self.page_penalty;
+    }
+
     fn rti(&mut self) {
         self.set_p_from_stack();
         self.reg.PC = self.stack_pull_word();
@@ -874,6 +893,24 @@ impl Cpu {
 
     fn sei(&mut self) {
         utils::set_bit(PS_I_BIT, &mut self.reg.P);
+    }
+
+    fn slo(&mut self) {
+        self.asl();
+        self.operand_value = self.mem.read(self.operand_address);
+        self.ora();
+        // This instruction does not suffer a page penalty, but ora()
+        // adds it in, so subtract it back off here.
+        self.extra_cycles -= self.page_penalty;
+    }
+
+    fn sre(&mut self) {
+        self.lsr();
+        self.operand_value = self.mem.read(self.operand_address);
+        self.eor();
+        // This instruction does not suffer a page penalty, but eor()
+        // adds it in, so subtract it back off here.
+        self.extra_cycles -= self.page_penalty;
     }
 
     fn sta(&mut self) {
@@ -931,11 +968,11 @@ impl Cpu {
         Instruction {opcode: 0x00, func: Cpu::brk,  addr_mode: AddrMode::IMP, name: "BRK", cycles: 7, legal: true },
         Instruction {opcode: 0x01, func: Cpu::ora,  addr_mode: AddrMode::IZX, name: "ORA", cycles: 6, legal: true },
         Instruction {opcode: 0x02, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x03, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "SLO", cycles: 8, legal: false },
+        Instruction {opcode: 0x03, func: Cpu::slo,  addr_mode: AddrMode::IZX, name: "SLO", cycles: 8, legal: false },
         Instruction {opcode: 0x04, func: Cpu::nop,  addr_mode: AddrMode::ZP,  name: "NOP", cycles: 3, legal: false },
         Instruction {opcode: 0x05, func: Cpu::ora,  addr_mode: AddrMode::ZP,  name: "ORA", cycles: 3, legal: true },
         Instruction {opcode: 0x06, func: Cpu::asl,  addr_mode: AddrMode::ZP,  name: "ASL", cycles: 5, legal: true },
-        Instruction {opcode: 0x07, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "SLO", cycles: 5, legal: false },
+        Instruction {opcode: 0x07, func: Cpu::slo,  addr_mode: AddrMode::ZP,  name: "SLO", cycles: 5, legal: false },
         Instruction {opcode: 0x08, func: Cpu::php,  addr_mode: AddrMode::IMP, name: "PHP", cycles: 3, legal: true },
         Instruction {opcode: 0x09, func: Cpu::ora,  addr_mode: AddrMode::IMM, name: "ORA", cycles: 2, legal: true },
         Instruction {opcode: 0x0A, func: Cpu::asl,  addr_mode: AddrMode::ACC, name: "ASL", cycles: 2, legal: true },
@@ -943,33 +980,33 @@ impl Cpu {
         Instruction {opcode: 0x0C, func: Cpu::nop,  addr_mode: AddrMode::ABS, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x0D, func: Cpu::ora,  addr_mode: AddrMode::ABS, name: "ORA", cycles: 4, legal: true },
         Instruction {opcode: 0x0E, func: Cpu::asl,  addr_mode: AddrMode::ABS, name: "ASL", cycles: 6, legal: true },
-        Instruction {opcode: 0x0F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "SLO", cycles: 6, legal: false },
+        Instruction {opcode: 0x0F, func: Cpu::slo,  addr_mode: AddrMode::ABS, name: "SLO", cycles: 6, legal: false },
 
         Instruction {opcode: 0x10, func: Cpu::bpl,  addr_mode: AddrMode::REL, name: "BPL", cycles: 2, legal: true },
         Instruction {opcode: 0x11, func: Cpu::ora,  addr_mode: AddrMode::IZY, name: "ORA", cycles: 5, legal: true },
         Instruction {opcode: 0x12, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x13, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "SLO", cycles: 8, legal: false },
+        Instruction {opcode: 0x13, func: Cpu::slo,  addr_mode: AddrMode::IZY, name: "SLO", cycles: 8, legal: false },
         Instruction {opcode: 0x14, func: Cpu::nop,  addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x15, func: Cpu::ora,  addr_mode: AddrMode::ZPX, name: "ORA", cycles: 4, legal: true },
         Instruction {opcode: 0x16, func: Cpu::asl,  addr_mode: AddrMode::ZPX, name: "ASL", cycles: 6, legal: true },
-        Instruction {opcode: 0x17, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "SLO", cycles: 6, legal: false },
+        Instruction {opcode: 0x17, func: Cpu::slo,  addr_mode: AddrMode::ZPX, name: "SLO", cycles: 6, legal: false },
         Instruction {opcode: 0x18, func: Cpu::clc,  addr_mode: AddrMode::IMP, name: "CLC", cycles: 2, legal: true },
         Instruction {opcode: 0x19, func: Cpu::ora,  addr_mode: AddrMode::ABY, name: "ORA", cycles: 4, legal: true },
         Instruction {opcode: 0x1A, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0x1B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "SLO", cycles: 7, legal: false },
+        Instruction {opcode: 0x1B, func: Cpu::slo,  addr_mode: AddrMode::ABY, name: "SLO", cycles: 7, legal: false },
         Instruction {opcode: 0x1C, func: Cpu::nop,  addr_mode: AddrMode::ABX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x1D, func: Cpu::ora,  addr_mode: AddrMode::ABX, name: "ORA", cycles: 4, legal: true },
         Instruction {opcode: 0x1E, func: Cpu::asl,  addr_mode: AddrMode::ABX, name: "ASL", cycles: 7, legal: true },
-        Instruction {opcode: 0x1F, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "SLO", cycles: 7, legal: false },
+        Instruction {opcode: 0x1F, func: Cpu::slo,  addr_mode: AddrMode::ABX, name: "SLO", cycles: 7, legal: false },
 
         Instruction {opcode: 0x20, func: Cpu::jsr,  addr_mode: AddrMode::ABS, name: "JSR", cycles: 6, legal: true },
         Instruction {opcode: 0x21, func: Cpu::and,  addr_mode: AddrMode::IZX, name: "AND", cycles: 6, legal: true },
         Instruction {opcode: 0x22, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x23, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "RLA", cycles: 8, legal: false },
+        Instruction {opcode: 0x23, func: Cpu::rla,  addr_mode: AddrMode::IZX, name: "RLA", cycles: 8, legal: false },
         Instruction {opcode: 0x24, func: Cpu::bit,  addr_mode: AddrMode::ZP,  name: "BIT", cycles: 3, legal: true },
         Instruction {opcode: 0x25, func: Cpu::and,  addr_mode: AddrMode::ZP,  name: "AND", cycles: 3, legal: true },
         Instruction {opcode: 0x26, func: Cpu::rol,  addr_mode: AddrMode::ZP,  name: "ROL", cycles: 5, legal: true },
-        Instruction {opcode: 0x27, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "RLA", cycles: 5, legal: false },
+        Instruction {opcode: 0x27, func: Cpu::rla,  addr_mode: AddrMode::ZP,  name: "RLA", cycles: 5, legal: false },
         Instruction {opcode: 0x28, func: Cpu::plp , addr_mode: AddrMode::IMP, name: "PLP", cycles: 4, legal: true },
         Instruction {opcode: 0x29, func: Cpu::and,  addr_mode: AddrMode::IMM, name: "AND", cycles: 2, legal: true },
         Instruction {opcode: 0x2A, func: Cpu::rol,  addr_mode: AddrMode::ACC, name: "ROL", cycles: 2, legal: true },
@@ -977,33 +1014,33 @@ impl Cpu {
         Instruction {opcode: 0x2C, func: Cpu::bit,  addr_mode: AddrMode::ABS, name: "BIT", cycles: 4, legal: true },
         Instruction {opcode: 0x2D, func: Cpu::and,  addr_mode: AddrMode::ABS, name: "AND", cycles: 4, legal: true },
         Instruction {opcode: 0x2E, func: Cpu::rol,  addr_mode: AddrMode::ABS, name: "ROL", cycles: 6, legal: true },
-        Instruction {opcode: 0x2F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "RLA", cycles: 6, legal: false },
+        Instruction {opcode: 0x2F, func: Cpu::rla,  addr_mode: AddrMode::ABS, name: "RLA", cycles: 6, legal: false },
 
         Instruction {opcode: 0x30, func: Cpu::bmi,  addr_mode: AddrMode::REL, name: "BMI", cycles: 2, legal: true },
         Instruction {opcode: 0x31, func: Cpu::and,  addr_mode: AddrMode::IZY, name: "AND", cycles: 5, legal: true },
         Instruction {opcode: 0x32, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x33, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "RLA", cycles: 8, legal: false },
+        Instruction {opcode: 0x33, func: Cpu::rla,  addr_mode: AddrMode::IZY, name: "RLA", cycles: 8, legal: false },
         Instruction {opcode: 0x34, func: Cpu::nop,  addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x35, func: Cpu::and,  addr_mode: AddrMode::ZPX, name: "AND", cycles: 4, legal: true },
         Instruction {opcode: 0x36, func: Cpu::rol,  addr_mode: AddrMode::ZPX, name: "ROL", cycles: 6, legal: true },
-        Instruction {opcode: 0x37, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "RLA", cycles: 6, legal: false },
+        Instruction {opcode: 0x37, func: Cpu::rla,  addr_mode: AddrMode::ZPX, name: "RLA", cycles: 6, legal: false },
         Instruction {opcode: 0x38, func: Cpu::sec,  addr_mode: AddrMode::IMP, name: "SEC", cycles: 2, legal: true },
         Instruction {opcode: 0x39, func: Cpu::and,  addr_mode: AddrMode::ABY, name: "AND", cycles: 4, legal: true },
         Instruction {opcode: 0x3A, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0x3B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "RLA", cycles: 7, legal: false },
+        Instruction {opcode: 0x3B, func: Cpu::rla,  addr_mode: AddrMode::ABY, name: "RLA", cycles: 7, legal: false },
         Instruction {opcode: 0x3C, func: Cpu::nop,  addr_mode: AddrMode::ABX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x3D, func: Cpu::and,  addr_mode: AddrMode::ABX, name: "AND", cycles: 4, legal: true },
         Instruction {opcode: 0x3E, func: Cpu::rol,  addr_mode: AddrMode::ABX, name: "ROL", cycles: 7, legal: true },
-        Instruction {opcode: 0x3F, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "RLA", cycles: 7, legal: false },
+        Instruction {opcode: 0x3F, func: Cpu::rla,  addr_mode: AddrMode::ABX, name: "RLA", cycles: 7, legal: false },
 
         Instruction {opcode: 0x40, func: Cpu::rti,  addr_mode: AddrMode::IMP, name: "RTI", cycles: 6, legal: true },
         Instruction {opcode: 0x41, func: Cpu::eor,  addr_mode: AddrMode::IZX, name: "EOR", cycles: 6, legal: true },
         Instruction {opcode: 0x42, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x43, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "SRE", cycles: 8, legal: false },
+        Instruction {opcode: 0x43, func: Cpu::sre,  addr_mode: AddrMode::IZX, name: "SRE", cycles: 8, legal: false },
         Instruction {opcode: 0x44, func: Cpu::nop,  addr_mode: AddrMode::ZP,  name: "NOP", cycles: 3, legal: false },
         Instruction {opcode: 0x45, func: Cpu::eor,  addr_mode: AddrMode::ZP,  name: "EOR", cycles: 3, legal: true },
         Instruction {opcode: 0x46, func: Cpu::lsr,  addr_mode: AddrMode::ZP,  name: "LSR", cycles: 5, legal: true },
-        Instruction {opcode: 0x47, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "SRE", cycles: 5, legal: false },
+        Instruction {opcode: 0x47, func: Cpu::sre,  addr_mode: AddrMode::ZP,  name: "SRE", cycles: 5, legal: false },
         Instruction {opcode: 0x48, func: Cpu::pha,  addr_mode: AddrMode::IMP, name: "PHA", cycles: 3, legal: true },
         Instruction {opcode: 0x49, func: Cpu::eor,  addr_mode: AddrMode::IMM, name: "EOR", cycles: 2, legal: true },
         Instruction {opcode: 0x4A, func: Cpu::lsr,  addr_mode: AddrMode::ACC, name: "LSR", cycles: 2, legal: true },
@@ -1011,33 +1048,33 @@ impl Cpu {
         Instruction {opcode: 0x4C, func: Cpu::jmp,  addr_mode: AddrMode::ABS, name: "JMP", cycles: 3, legal: true },
         Instruction {opcode: 0x4D, func: Cpu::eor,  addr_mode: AddrMode::ABS, name: "EOR", cycles: 4, legal: true },
         Instruction {opcode: 0x4E, func: Cpu::lsr,  addr_mode: AddrMode::ABS, name: "LSR", cycles: 6, legal: true },
-        Instruction {opcode: 0x4F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "SRE", cycles: 6, legal: false },
+        Instruction {opcode: 0x4F, func: Cpu::sre,  addr_mode: AddrMode::ABS, name: "SRE", cycles: 6, legal: false },
 
         Instruction {opcode: 0x50, func: Cpu::bvc,  addr_mode: AddrMode::REL, name: "BVC", cycles: 2, legal: true },
         Instruction {opcode: 0x51, func: Cpu::eor,  addr_mode: AddrMode::IZY, name: "EOR", cycles: 5, legal: true },
         Instruction {opcode: 0x52, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x53, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "SRE", cycles: 8, legal: false },
+        Instruction {opcode: 0x53, func: Cpu::sre,  addr_mode: AddrMode::IZY, name: "SRE", cycles: 8, legal: false },
         Instruction {opcode: 0x54, func: Cpu::nop,  addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x55, func: Cpu::eor,  addr_mode: AddrMode::ZPX, name: "EOR", cycles: 4, legal: true },
         Instruction {opcode: 0x56, func: Cpu::lsr,  addr_mode: AddrMode::ZPX, name: "LSR", cycles: 6, legal: true },
-        Instruction {opcode: 0x57, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "SRE", cycles: 6, legal: false },
+        Instruction {opcode: 0x57, func: Cpu::sre,  addr_mode: AddrMode::ZPX, name: "SRE", cycles: 6, legal: false },
         Instruction {opcode: 0x58, func: Cpu::cli,  addr_mode: AddrMode::IMP, name: "CLI", cycles: 2, legal: true },
         Instruction {opcode: 0x59, func: Cpu::eor,  addr_mode: AddrMode::ABY, name: "EOR", cycles: 4, legal: true },
         Instruction {opcode: 0x5A, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0x5B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "SRE", cycles: 7, legal: false },
+        Instruction {opcode: 0x5B, func: Cpu::sre,  addr_mode: AddrMode::ABY, name: "SRE", cycles: 7, legal: false },
         Instruction {opcode: 0x5C, func: Cpu::nop,  addr_mode: AddrMode::ABX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x5D, func: Cpu::eor,  addr_mode: AddrMode::ABX, name: "EOR", cycles: 4, legal: true },
         Instruction {opcode: 0x5E, func: Cpu::lsr,  addr_mode: AddrMode::ABX, name: "LSR", cycles: 7, legal: true },
-        Instruction {opcode: 0x5F, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "SRE", cycles: 7, legal: false },
+        Instruction {opcode: 0x5F, func: Cpu::sre,  addr_mode: AddrMode::ABX, name: "SRE", cycles: 7, legal: false },
 
         Instruction {opcode: 0x60, func: Cpu::rts,  addr_mode: AddrMode::IMP, name: "RTS", cycles: 6, legal: true },
         Instruction {opcode: 0x61, func: Cpu::adc,  addr_mode: AddrMode::IZX, name: "ADC", cycles: 6, legal: true },
         Instruction {opcode: 0x62, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x63, func: Cpu::oops, addr_mode: AddrMode::IZX, name: "RRA", cycles: 8, legal: false },
+        Instruction {opcode: 0x63, func: Cpu::rra,  addr_mode: AddrMode::IZX, name: "RRA", cycles: 8, legal: false },
         Instruction {opcode: 0x64, func: Cpu::nop,  addr_mode: AddrMode::ZP,  name: "NOP", cycles: 3, legal: false },
         Instruction {opcode: 0x65, func: Cpu::adc,  addr_mode: AddrMode::ZP,  name: "ADC", cycles: 3, legal: true },
         Instruction {opcode: 0x66, func: Cpu::ror,  addr_mode: AddrMode::ZP,  name: "ROR", cycles: 5, legal: true },
-        Instruction {opcode: 0x67, func: Cpu::oops, addr_mode: AddrMode::ZP,  name: "RRA", cycles: 5, legal: false },
+        Instruction {opcode: 0x67, func: Cpu::rra,  addr_mode: AddrMode::ZP,  name: "RRA", cycles: 5, legal: false },
         Instruction {opcode: 0x68, func: Cpu::pla,  addr_mode: AddrMode::IMP, name: "PLA", cycles: 4, legal: true },
         Instruction {opcode: 0x69, func: Cpu::adc,  addr_mode: AddrMode::IMM, name: "ADC", cycles: 2, legal: true },
         Instruction {opcode: 0x6A, func: Cpu::ror,  addr_mode: AddrMode::ACC, name: "ROR", cycles: 2, legal: true },
@@ -1045,24 +1082,24 @@ impl Cpu {
         Instruction {opcode: 0x6C, func: Cpu::jmp,  addr_mode: AddrMode::IND, name: "JMP", cycles: 5, legal: true },
         Instruction {opcode: 0x6D, func: Cpu::adc,  addr_mode: AddrMode::ABS, name: "ADC", cycles: 4, legal: true },
         Instruction {opcode: 0x6E, func: Cpu::ror,  addr_mode: AddrMode::ABS, name: "ROR", cycles: 6, legal: true },
-        Instruction {opcode: 0x6F, func: Cpu::oops, addr_mode: AddrMode::ABS, name: "RRA", cycles: 6, legal: false },
+        Instruction {opcode: 0x6F, func: Cpu::rra,  addr_mode: AddrMode::ABS, name: "RRA", cycles: 6, legal: false },
 
         Instruction {opcode: 0x70, func: Cpu::bvs,  addr_mode: AddrMode::REL, name: "BVS", cycles: 2, legal: true },
         Instruction {opcode: 0x71, func: Cpu::adc,  addr_mode: AddrMode::IZY, name: "ADC", cycles: 5, legal: true },
         Instruction {opcode: 0x72, func: Cpu::oops, addr_mode: AddrMode::UNK, name: "ILL", cycles: 0, legal: false },
-        Instruction {opcode: 0x73, func: Cpu::oops, addr_mode: AddrMode::IZY, name: "RRA", cycles: 8, legal: false },
+        Instruction {opcode: 0x73, func: Cpu::rra,  addr_mode: AddrMode::IZY, name: "RRA", cycles: 8, legal: false },
         Instruction {opcode: 0x74, func: Cpu::nop,  addr_mode: AddrMode::ZPX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x75, func: Cpu::adc,  addr_mode: AddrMode::ZPX, name: "ADC", cycles: 4, legal: true },
         Instruction {opcode: 0x76, func: Cpu::ror,  addr_mode: AddrMode::ZPX, name: "ROR", cycles: 6, legal: true },
-        Instruction {opcode: 0x77, func: Cpu::oops, addr_mode: AddrMode::ZPX, name: "RRA", cycles: 6, legal: false },
+        Instruction {opcode: 0x77, func: Cpu::rra,  addr_mode: AddrMode::ZPX, name: "RRA", cycles: 6, legal: false },
         Instruction {opcode: 0x78, func: Cpu::sei,  addr_mode: AddrMode::IMP, name: "SEI", cycles: 2, legal: true },
         Instruction {opcode: 0x79, func: Cpu::adc,  addr_mode: AddrMode::ABY, name: "ADC", cycles: 4, legal: true },
         Instruction {opcode: 0x7A, func: Cpu::nop,  addr_mode: AddrMode::IMP, name: "NOP", cycles: 2, legal: false },
-        Instruction {opcode: 0x7B, func: Cpu::oops, addr_mode: AddrMode::ABY, name: "RRA", cycles: 7, legal: false },
+        Instruction {opcode: 0x7B, func: Cpu::rra,  addr_mode: AddrMode::ABY, name: "RRA", cycles: 7, legal: false },
         Instruction {opcode: 0x7C, func: Cpu::nop,  addr_mode: AddrMode::ABX, name: "NOP", cycles: 4, legal: false },
         Instruction {opcode: 0x7D, func: Cpu::adc,  addr_mode: AddrMode::ABX, name: "ADC", cycles: 4, legal: true },
         Instruction {opcode: 0x7E, func: Cpu::ror,  addr_mode: AddrMode::ABX, name: "ROR", cycles: 7, legal: true },
-        Instruction {opcode: 0x7F, func: Cpu::oops, addr_mode: AddrMode::ABX, name: "RRA", cycles: 7, legal: false },
+        Instruction {opcode: 0x7F, func: Cpu::rra,  addr_mode: AddrMode::ABX, name: "RRA", cycles: 7, legal: false },
 
         Instruction {opcode: 0x80, func: Cpu::nop,  addr_mode: AddrMode::IMM, name: "NOP", cycles: 2, legal: false },
         Instruction {opcode: 0x81, func: Cpu::sta,  addr_mode: AddrMode::IZX, name: "STA", cycles: 6, legal: true },
