@@ -160,7 +160,7 @@ impl Cpu {
 
         self.page_penalty = 0;
         self.extra_cycles = 0;
-        self.fetch_operand(&instruction.addr_mode);
+        self.set_operand_address(&instruction.addr_mode);
 
         self.print_log_line(instruction, instruction_address);
 
@@ -225,7 +225,7 @@ impl Cpu {
     }
 
     fn addr_mode_acc(&mut self) {
-        self.operand_value = self.reg.A;
+        //self.operand_value = self.reg.A;
     }
 
     fn addr_mode_imm(&mut self) {
@@ -234,7 +234,7 @@ impl Cpu {
 
     fn addr_mode_abs(&mut self) {
         self.operand_address = self.read_word();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_abx(&mut self) {
@@ -242,7 +242,7 @@ impl Cpu {
         self.operand_address = base_addres.wrapping_add(self.reg.X as u16);
         let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_aby(&mut self) {
@@ -250,7 +250,7 @@ impl Cpu {
         self.operand_address = base_addres.wrapping_add(self.reg.Y as u16);
         let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_ind(&mut self) {
@@ -286,7 +286,7 @@ impl Cpu {
         } else {
             self.operand_address = self.mem.read_word(zp_addr as u16);
         }
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_izy(&mut self) {
@@ -304,31 +304,31 @@ impl Cpu {
         self.operand_address = base_addr.wrapping_add(self.reg.Y as u16);
         let add_cycles = if utils::same_page(base_addr, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zp(&mut self) {
         self.operand_address = self.read_byte() as u16;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zpx(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.X);
         self.operand_address = zp_addr as u16;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_zpy(&mut self) {
         let zp_addr = self.read_byte().wrapping_add(self.reg.Y);
         self.operand_address = zp_addr as u16;
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
     }
 
     fn addr_mode_rel(&mut self) {
         self.operand_value = self.read_byte();
     }
 
-    fn fetch_operand(&mut self, addr_mode: &AddrMode) {
+    fn set_operand_address(&mut self, addr_mode: &AddrMode) {
         match addr_mode {
             AddrMode::IMM => self.addr_mode_imm(),
             AddrMode::ABS => self.addr_mode_abs(),
@@ -343,6 +343,31 @@ impl Cpu {
             AddrMode::REL => self.addr_mode_rel(),
             AddrMode::ACC => self.addr_mode_acc(),
             AddrMode::IMP => {},
+            AddrMode::UNK => {},
+        }
+    }
+
+    ///
+    /// Fetches operands that need to be read from memory using the operand
+    /// address set during the addr_mode function.
+    /// 
+    fn fetch_operand(&mut self) {
+        let instruction = &Cpu::OP_CODES[self.opcode as usize];
+
+        match instruction.addr_mode {
+            AddrMode::IMM => {}, // read_byte() called during addr_mode_imm()
+            AddrMode::ABS => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::ZP => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::IMP => {},
+            AddrMode::IND => {},
+            AddrMode::ABX => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::ABY => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::ZPX => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::ZPY => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::IZX => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::IZY => self.operand_value = self.mem.read(self.operand_address),
+            AddrMode::REL => {}, // read_byte() called during addr_mode_rel()
+            AddrMode::ACC => self.operand_value = self.reg.A,
             AddrMode::UNK => {},
         }
     }
@@ -469,12 +494,15 @@ impl Cpu {
     // CPU Instructions
     //
     fn and(&mut self) {
+        self.fetch_operand();
         self.reg.A &= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn adc(&mut self) {
+        self.fetch_operand();
+
         let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
 
         let (u8_result1, u8_overflow1) = self.reg.A.overflowing_add(self.operand_value);
@@ -502,6 +530,8 @@ impl Cpu {
     }
 
     fn asl(&mut self) {
+        self.fetch_operand();
+
         // Move bit 7 of operand value into carry flag
         if utils::bit_is_set(7, self.operand_value) {
             utils::set_bit(PS_C_BIT, &mut self.reg.P);
@@ -523,18 +553,23 @@ impl Cpu {
     }
 
     fn bcc(&mut self) {
+        self.fetch_operand();
         self.branch_if_clear(PS_C_BIT);
     }
 
     fn bcs(&mut self) {
+        self.fetch_operand();
         self.branch_if_set(PS_C_BIT);
     }
 
     fn beq(&mut self) {
+        self.fetch_operand();
         self.branch_if_set(PS_Z_BIT);
     }
 
     fn bit(&mut self) {
+        self.fetch_operand();
+
         let and_result = self.reg.A & self.operand_value;
         self.update_processor_status_z_flag(and_result);
 
@@ -543,14 +578,17 @@ impl Cpu {
     }
 
     fn bmi(&mut self) {
+        self.fetch_operand();
         self.branch_if_set(PS_N_BIT);
     }
 
     fn bne(&mut self) {
+        self.fetch_operand();
         self.branch_if_clear(PS_Z_BIT);
     }
 
     fn bpl(&mut self) {
+        self.fetch_operand();
         self.branch_if_clear(PS_N_BIT);
     }
 
@@ -567,10 +605,12 @@ impl Cpu {
     }
 
     fn bvc(&mut self) {
+        self.fetch_operand();
         self.branch_if_clear(PS_V_BIT);
     }
 
     fn bvs(&mut self) {
+        self.fetch_operand();
         self.branch_if_set(PS_V_BIT);
     }
 
@@ -608,15 +648,18 @@ impl Cpu {
     }
 
     fn cmp(&mut self) {
+        self.fetch_operand();
         self.do_comparison(self.reg.A, self.operand_value);
         self.apply_page_penalty();
     }
 
     fn cpx(&mut self) {
+        self.fetch_operand();
         self.do_comparison(self.reg.X, self.operand_value);
     }
 
     fn cpy(&mut self) {
+        self.fetch_operand();
         self.do_comparison(self.reg.Y, self.operand_value);
     }
 
@@ -647,6 +690,7 @@ impl Cpu {
     }
 
     fn eor(&mut self) {
+        self.fetch_operand();
         self.reg.A ^= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
@@ -671,7 +715,7 @@ impl Cpu {
 
     fn isb(&mut self) {
         self.inc();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
         self.sbc();
         // This instruction does not suffer a page penalty, but sbc()
         // adds it in, so subtract it back off here.
@@ -689,6 +733,7 @@ impl Cpu {
     }
 
     fn lax(&mut self) {
+        self.fetch_operand();
         self.reg.A = self.operand_value;
         self.reg.X = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
@@ -696,24 +741,29 @@ impl Cpu {
     }
 
     fn lda(&mut self) {
+        self.fetch_operand();
         self.reg.A = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
     fn ldx(&mut self) {
+        self.fetch_operand();
         self.reg.X = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.X);
         self.apply_page_penalty();
     }
 
     fn ldy(&mut self) {
+        self.fetch_operand();
         self.reg.Y = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.Y);
         self.apply_page_penalty();
     }
 
     fn lsr(&mut self) {
+        self.fetch_operand();
+
         // Move bit 0 of operand value into carry flag
         if utils::bit_is_set(0, self.operand_value) {
             utils::set_bit(PS_C_BIT, &mut self.reg.P);
@@ -742,6 +792,7 @@ impl Cpu {
     }
 
     fn ora(&mut self) {
+        self.fetch_operand();
         self.reg.A |= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
@@ -769,7 +820,7 @@ impl Cpu {
 
     fn rla(&mut self) {
         self.rol();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
         self.and();
         // This instruction does not suffer a page penalty, but and()
         // adds it in, so subtract it back off here.
@@ -777,6 +828,8 @@ impl Cpu {
     }
 
     fn rol(&mut self) {
+        self.fetch_operand();
+
         // Get value for bit 0 from current carry flag value
         let bit0 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
 
@@ -805,6 +858,8 @@ impl Cpu {
     }
 
     fn ror(&mut self) {
+        self.fetch_operand();
+
         // Get value for bit 7 from current carry flag value
         let bit7 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 << 7 } else { 0u8 };
 
@@ -834,7 +889,7 @@ impl Cpu {
 
     fn rra(&mut self) {
         self.ror();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
         self.adc();
         // This instruction does not suffer a page penalty, but adc()
         // adds it in, so subtract it back off here.
@@ -857,6 +912,8 @@ impl Cpu {
     }
 
     fn sbc(&mut self) {
+        self.fetch_operand();
+
         let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 0u8 } else { 1u8 };
 
         let (u8_result1, u8_overflow1) = self.reg.A.overflowing_sub(self.operand_value);
@@ -897,7 +954,7 @@ impl Cpu {
 
     fn slo(&mut self) {
         self.asl();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
         self.ora();
         // This instruction does not suffer a page penalty, but ora()
         // adds it in, so subtract it back off here.
@@ -906,7 +963,7 @@ impl Cpu {
 
     fn sre(&mut self) {
         self.lsr();
-        self.operand_value = self.mem.read(self.operand_address);
+        //self.operand_value = self.mem.read(self.operand_address);
         self.eor();
         // This instruction does not suffer a page penalty, but eor()
         // adds it in, so subtract it back off here.
@@ -1305,7 +1362,7 @@ mod tests {
         let mut cpu = get_cpu_with_mem_ramp();
         cpu.reg.PC = 0x501;
 
-        cpu.fetch_operand(&AddrMode::IMM);
+        cpu.set_operand_address(&AddrMode::IMM);
         assert!(cpu.operand_value == 1);
     }
 
@@ -1316,7 +1373,7 @@ mod tests {
 
         // Should read 0x0302 as the address word from PC
         // The value at 0x0302 should be 2 in the mem ramp.
-        cpu.fetch_operand(&AddrMode::ABS);
+        cpu.set_operand_address(&AddrMode::ABS);
         assert!(cpu.operand_value == 2);
     }
 

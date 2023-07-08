@@ -11,6 +11,7 @@ use clap::Parser;
 use ines::Ines;
 
 mod utils;
+mod state;
 mod cpu;
 use cpu::Cpu;
 
