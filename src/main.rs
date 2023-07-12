@@ -18,6 +18,8 @@ use cpu::Cpu;
 mod mem;
 use mem::Memory;
 
+use crate::state::NesState;
+
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
 const CPU_FREQ: u64 = MASTER_CLOCK_HZ / CLOCK_DIVISOR;
@@ -77,13 +79,13 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut memory = Memory::default();
+    let mut state = NesState::new();
 
-    load_prg_rom(&mut memory, &ines_file);
+    load_prg_rom(&mut state.cpu_mem, &ines_file);
 
-    info!("reset vector: {:04X}", memory.read_word(0xFFFC));
+    info!("reset vector: {:04X}", state.cpu_mem.read_word(0xFFFC));
 
-    let mut cpu = Cpu::new(memory);
+    let mut cpu = Cpu::new(&state);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -114,7 +116,7 @@ fn main() {
             cycle = max_cycles;
         }
 
-        cpu.cycle_to(cycle);
+        cpu.cycle_to(&mut state, cycle);
 
         let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
         let next_cycle_time = startup_time + next_cycle_offset;

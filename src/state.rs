@@ -6,7 +6,16 @@ use crate::mem::*;
 /// registers. This structure is passed to the CPU, Mapper, PPU, and APU
 /// when it's their turn to cycle.
 /// 
-struct _NesSharedState {
-    cpu_mem: Memory,
+pub struct NesState {
+    pub cpu_mem: Memory,
     ppu_mem: Memory,
+}
+
+impl NesState {
+    pub fn new() -> Self {
+        Self {
+            cpu_mem: Memory::default(),
+            ppu_mem: Memory::default(),
+        }
+    }
 }
