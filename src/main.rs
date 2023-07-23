@@ -16,9 +16,10 @@ mod cpu;
 use cpu::Cpu;
 
 mod mem;
-use mem::Memory;
+use mem::memory::Memory;
+use mem::MemController;
 
-use crate::state::NesState;
+//use crate::state::NesState;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
@@ -57,11 +58,11 @@ fn parse_rom_file(rom_path: &Path) -> Ines {
     }
 }
 
-fn load_prg_rom(memory: &mut Memory, ines: &Ines) {
-    memory.load(0x8000, &ines.prg_rom);
+fn load_prg_rom(mc: &mut MemController, ines: &Ines) {
+    mc.cpu_mem_load(0x8000, &ines.prg_rom);
 
     if ines.header.num_prg_rom_blocks == 1 {
-        memory.load(0xC000, &ines.prg_rom);
+        mc.cpu_mem_load(0xC000, &ines.prg_rom);
     }
 }
 
@@ -79,13 +80,13 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut state = NesState::new();
+    let mut mc = MemController::new();
 
-    load_prg_rom(&mut state.cpu_mem, &ines_file);
+    load_prg_rom(&mut mc, &ines_file);
 
-    info!("reset vector: {:04X}", state.cpu_mem.read_word(0xFFFC));
+    info!("reset vector: {:04X}", mc.raw_cpu_mem_read_word(0xFFFC));
 
-    let mut cpu = Cpu::new(&state);
+    let mut cpu = Cpu::new(&mc);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -116,7 +117,7 @@ fn main() {
             cycle = max_cycles;
         }
 
-        cpu.cycle_to(&mut state, cycle);
+        cpu.cycle_to(&mut mc, cycle);
 
         let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
         let next_cycle_time = startup_time + next_cycle_offset;
