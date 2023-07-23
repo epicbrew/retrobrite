@@ -16,10 +16,11 @@ mod cpu;
 use cpu::Cpu;
 
 mod mem;
-use mem::memory::Memory;
 use mem::MemController;
 
-//use crate::state::NesState;
+use crate::mappers::Mapper;
+
+mod mappers;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
@@ -81,9 +82,12 @@ fn main() {
     }
 
     let mut mc = MemController::new();
+    let mut mapper = mappers::get_mapper(ines_file.header.mapper as u16);
 
-    load_prg_rom(&mut mc, &ines_file);
+    mapper.load_rom(&mut mc, &ines_file);
+    //load_prg_rom(&mut mc, &ines_file);
 
+    mapper.print_info();
     info!("reset vector: {:04X}", mc.raw_cpu_mem_read_word(0xFFFC));
 
     let mut cpu = Cpu::new(&mc);
