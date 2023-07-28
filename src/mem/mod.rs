@@ -70,14 +70,16 @@ pub struct MemController {
     cpu_mem: Memory,
     ppu_mem: Memory,
     ppu_observer: PpuMemObserver,
+    mapper_observer: Box<dyn MemObserver>,
 }
 
 impl MemController {
-    pub fn new() -> Self {
+    pub fn new(mapper_observer: Box<dyn MemObserver>) -> Self {
         Self {
-            cpu_mem: Memory::default(),
-            ppu_mem: Memory::default(),
+            cpu_mem: Memory::new_cpu(),
+            ppu_mem: Memory::new_ppu(),
             ppu_observer: PpuMemObserver::default(),
+            mapper_observer,
         }
     }
 
@@ -99,13 +101,15 @@ impl MemController {
     /// Read from CPU memory and notify observers.
     pub fn cpu_mem_read(&mut self, cycle: u64, addr: u16) -> u8 {
         let addr = self.get_cpu_effective_address(addr);
+
         self.ppu_observer.read_happened(cycle, addr);
+        self.mapper_observer.read_happened(cycle, addr);
 
         self.cpu_mem.read(addr)
     }
 
     /// Read from CPU memory without notifying observers.
-    pub fn raw_cpu_mem_read(&self, addr: u16) -> u8 {
+    pub fn _raw_cpu_mem_read(&self, addr: u16) -> u8 {
         let addr = self.get_cpu_effective_address(addr);
         self.cpu_mem.read(addr)
     }
@@ -116,6 +120,8 @@ impl MemController {
 
         self.ppu_observer.read_happened(cycle, addr);
         self.ppu_observer.read_happened(cycle, addr + 1);
+        self.mapper_observer.read_happened(cycle, addr);
+        self.mapper_observer.read_happened(cycle, addr + 1);
 
         self.cpu_mem.read_word(addr)
     }
@@ -129,7 +135,9 @@ impl MemController {
     /// Write an 8-bit value to memory.
     pub fn cpu_mem_write(&mut self, cycle: u64, addr: u16, value: u8) {
         let addr = self.get_cpu_effective_address(addr);
+
         self.ppu_observer.write_happened(cycle, addr, value);
+        self.mapper_observer.write_happened(cycle, addr, value);
 
         self.cpu_mem.write(addr, value);
     }

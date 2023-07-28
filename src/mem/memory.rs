@@ -1,20 +1,32 @@
 
 //const PAGE_SIZE: u16 = 256;
-const MEMORY_SIZE: usize = 1024 * 64;
+//const MEMORY_SIZE: usize = 1024 * 64;
 
+const CPU_MEMORY_SIZE: usize = 1024 * 64;
+const PPU_MEMORY_SIZE: usize = 1024 * 16;
+
+/// Struct representing NES memory.
+/// Used for CPU and PPU memory.
 pub struct Memory {
-    mem: [u8; MEMORY_SIZE],
-}
-
-impl Default for Memory {
-    fn default() -> Self {
-        Self {
-            mem: [0u8; MEMORY_SIZE]
-        }
-    }
+    mem: Vec<u8>,
 }
 
 impl Memory {
+
+    /// Creates 64KB CPU memory.
+    pub fn new_cpu() -> Self {
+        Self {
+            mem: vec![0u8; CPU_MEMORY_SIZE],
+        }
+    }
+
+    /// Creates 16KB PPU memory.
+    pub fn new_ppu() -> Self {
+        Self {
+            mem: vec![0u8; PPU_MEMORY_SIZE],
+        }
+    }
+
     /// Read an 8-bit value from memory.
     pub fn read(&self, addr: u16) -> u8 {
         self.mem[addr as usize]

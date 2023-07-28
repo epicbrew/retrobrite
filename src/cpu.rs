@@ -125,7 +125,7 @@ impl Cpu {
     ///     https://www.nesdev.org/wiki/CPU_power_up_mc
     /// 
     pub fn _reset(&mut self, mc: &mut MemController) {
-        self.reg.PC = mc.cpu_mem_read_word(self.cycle_count, 0xFFFC);
+        self.reg.PC = mc.raw_cpu_mem_read_word(0xFFFC);
         self.reg.SP -= 3; 
         self.reg.P = 0x34; // Not sure if this is correct
     }
@@ -1325,6 +1325,17 @@ impl Cpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::mem::MemObserver;
+
+    #[derive(Default)]
+    struct DummyObserver;
+
+    impl MemObserver for DummyObserver {
+        fn read_happened(&mut self, _cycle: u64, _addr: u16) {
+        }
+        fn write_happened(&mut self, _cycle: u64, _addr: u16, _value: u8) {
+        }
+    }
     
     impl Cpu {
         pub fn default() -> Self {
@@ -1343,7 +1354,7 @@ mod tests {
 
 
     fn get_mc_with_cpu_mem_ramp() -> MemController {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
 
         for page in 0..256 {
             for byte in 0..256 {
@@ -1415,7 +1426,7 @@ mod tests {
 
     #[test]
     fn test_and_with_zero_result() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xF0;
@@ -1428,7 +1439,7 @@ mod tests {
 
     #[test]
     fn test_and_with_negative_result() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x81;
         cpu.operand_value = 0xF1;
@@ -1441,7 +1452,7 @@ mod tests {
 
     #[test]
     fn test_eor() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xFF;
@@ -1454,7 +1465,7 @@ mod tests {
 
     #[test]
     fn test_ora() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x8F;
         cpu.operand_value = 0x71;
@@ -1467,7 +1478,7 @@ mod tests {
 
     #[test]
     fn test_adc() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 1;
@@ -1505,7 +1516,7 @@ mod tests {
     #[test]
     fn test_asl() {
         // This test actually executes a small program to test ASL.
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
 
         let test_program: Vec<u8> = vec![
@@ -1533,7 +1544,7 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 5;
@@ -1562,7 +1573,7 @@ mod tests {
     fn test_jsr_rts() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let mut mc = MemController::new();
+        let mut mc = MemController::new(Box::new(DummyObserver));
         let mut cpu = Cpu::default();
 
         let test_program: Vec<u8> = vec![

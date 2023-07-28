@@ -41,12 +41,11 @@ impl Mapper for NromMapper {
         }
     }
 
-    fn cycle_to(&mut self, mc: &mut MemController, cycle: u64) {
+    fn cycle_to(&mut self, _mc: &mut MemController, _cycle: u64) {
         // NROM doesn't do anything
     }
 
-    fn get_observer() -> Box<dyn MemObserver> {
+    fn get_observer(&self) -> Box<dyn MemObserver> {
         Box::new(NromObserver)
     }
-
 }

@@ -10,7 +10,7 @@ pub trait Mapper {
     fn number(&self) -> u16;
     fn load_rom(&mut self, mc: &mut MemController, ines: &Ines);
     fn cycle_to(&mut self, mc: &mut MemController, cycle: u64);
-    fn get_observer() -> Box<dyn MemObserver>;
+    fn get_observer(&self) -> Box<dyn MemObserver>;
 
     fn print_info(&self) {
         println!("Mapper: {} ({:03})", self.name(), self.number());

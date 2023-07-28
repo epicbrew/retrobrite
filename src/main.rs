@@ -11,7 +11,6 @@ use clap::Parser;
 use ines::Ines;
 
 mod utils;
-mod state;
 mod cpu;
 use cpu::Cpu;
 
@@ -59,14 +58,6 @@ fn parse_rom_file(rom_path: &Path) -> Ines {
     }
 }
 
-fn load_prg_rom(mc: &mut MemController, ines: &Ines) {
-    mc.cpu_mem_load(0x8000, &ines.prg_rom);
-
-    if ines.header.num_prg_rom_blocks == 1 {
-        mc.cpu_mem_load(0xC000, &ines.prg_rom);
-    }
-}
-
 fn main() {
     env_logger::init();
 
@@ -81,8 +72,9 @@ fn main() {
         std::process::exit(0);
     }
 
-    let mut mc = MemController::new();
     let mut mapper = mappers::get_mapper(ines_file.header.mapper as u16);
+
+    let mut mc = MemController::new(mapper.get_observer());
 
     mapper.load_rom(&mut mc, &ines_file);
     //load_prg_rom(&mut mc, &ines_file);
