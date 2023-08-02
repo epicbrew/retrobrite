@@ -1,6 +1,8 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, cell::RefCell, rc::Rc};
 pub mod memory;
 use memory::Memory;
+
+use crate::ppu::Ppu;
 
 pub enum MemEvent {
     MemRead{ cycle: u64, addr: u16 },
@@ -69,17 +71,21 @@ impl MemObserver for PpuMemObserver {
 pub struct MemController {
     cpu_mem: Memory,
     ppu_mem: Memory,
+    vram: Memory,
     ppu_observer: PpuMemObserver,
     mapper_observer: Box<dyn MemObserver>,
+    ppu: Rc<RefCell<Ppu>>,
 }
 
 impl MemController {
-    pub fn new(mapper_observer: Box<dyn MemObserver>) -> Self {
+    pub fn new(mapper_observer: Box<dyn MemObserver>, ppu: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),
             ppu_mem: Memory::new_ppu(),
+            vram: Memory::new_vram(),
             ppu_observer: PpuMemObserver::default(),
             mapper_observer,
+            ppu,
         }
     }
 

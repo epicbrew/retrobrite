@@ -4,6 +4,7 @@
 
 const CPU_MEMORY_SIZE: usize = 1024 * 64;
 const PPU_MEMORY_SIZE: usize = 1024 * 16;
+const VRAM_MEMORY_SIZE: usize = 1024 * 2;
 
 /// Struct representing NES memory.
 /// Used for CPU and PPU memory.
@@ -12,6 +13,12 @@ pub struct Memory {
 }
 
 impl Memory {
+    /// Creates a new memory object of the specified size.
+    pub fn new(size: usize) -> Self {
+        Self {
+            mem: vec![0u8; size],
+        }
+    }
 
     /// Creates 64KB CPU memory.
     pub fn new_cpu() -> Self {
@@ -24,6 +31,13 @@ impl Memory {
     pub fn new_ppu() -> Self {
         Self {
             mem: vec![0u8; PPU_MEMORY_SIZE],
+        }
+    }
+
+    /// Creates 2KB VRAM memory.
+    pub fn new_vram() -> Self {
+        Self {
+            mem: vec![0u8; VRAM_MEMORY_SIZE],
         }
     }
 

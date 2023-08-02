@@ -3,6 +3,8 @@ extern crate log;
 extern crate clap;
 extern crate ines;
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
 use std::path::{PathBuf, Path};
@@ -13,6 +15,9 @@ use ines::Ines;
 mod utils;
 mod cpu;
 use cpu::Cpu;
+
+mod ppu;
+use ppu::Ppu;
 
 mod mem;
 use mem::MemController;
@@ -74,7 +79,8 @@ fn main() {
 
     let mut mapper = mappers::get_mapper(ines_file.header.mapper as u16);
 
-    let mut mc = MemController::new(mapper.get_observer());
+    let mut mc = MemController::new(mapper.get_observer(),
+                                    Rc::new(RefCell::new(Ppu::new())));
 
     mapper.load_rom(&mut mc, &ines_file);
     //load_prg_rom(&mut mc, &ines_file);
