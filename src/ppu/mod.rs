@@ -98,12 +98,20 @@ pub struct Ppu {
     reg: PpuRegisters,
 
     /// Current pointer position into VRAM.
-    vram_ptr: u16,
+    //vram_ptr: u16,
+
+    /// PPU memory (vram, etc.)
+    mem: Memory,
 
     /// Object Attribute Memory
     oam: Memory,
 
     ppuaddr_latch: Latch,
+
+    /// Reads to 2007 are done via an internal ppu buffer.
+    /// A read returns the buffer contents and then the buffer
+    /// is loaded with the value at PPUADDR
+    ppudata_read_buffer: u8,
 
     ppuscroll_latch: Latch,
     ppuscroll_x_offset: u8,
@@ -116,9 +124,11 @@ impl Ppu {
             flags: PpuFlags::default(),
             cycle_count: 0,
             reg: PpuRegisters::default(),
-            vram_ptr: 0,
+            //vram_ptr: 0,
+            mem: Memory::new_ppu(),
             oam: Memory::new(OAM_SIZE),
             ppuaddr_latch: Latch::Clear,
+            ppudata_read_buffer: 0,
             ppuscroll_latch: Latch::Clear,
             ppuscroll_x_offset: 0,
             ppuscroll_y_offset: 0,
@@ -190,6 +200,31 @@ impl Ppu {
         }
     }
 
+    pub fn write_2007_ppudata(&mut self, value: u8) {
+        self.mem.write(self.reg.ppu_addr, value);
+        self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
+    }
+
+    pub fn read_2007_ppudata(&mut self) -> u8 {
+        if self.reg.ppu_addr > 0x3EFF {
+            let value = self.mem.read(self.reg.ppu_addr);
+            self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
+
+            value
+        } else {
+            let value = self.ppudata_read_buffer;
+
+            self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
+            self.ppudata_read_buffer = self.mem.read(self.reg.ppu_addr);
+
+            value
+        }
+    }
+
+    pub fn oam_dma(&mut self, data: &[u8]) {
+        self.oam.load(0, data);
+    }
+
     fn ppu_ctrl_get_base_nametable_addr(&self) -> u16 {
         let index = self.reg.ppu_ctrl & 0x0003;
         match index {
@@ -198,6 +233,14 @@ impl Ppu {
             2 => 0x2800,
             3 => 0x2C00,
             _ => panic!("ppu_ctrl_get_base_nametable_addr: invalid index")
+        }
+    }
+
+    fn ppu_ctrl_get_vram_increment(&self) -> u16 {
+        if utils::bit_is_set(2, self.reg.ppu_ctrl) {
+            32
+        } else {
+            1
         }
     }
 }

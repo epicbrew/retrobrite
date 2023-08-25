@@ -70,8 +70,8 @@ impl MemObserver for PpuMemObserver {
 /// 
 pub struct MemController {
     cpu_mem: Memory,
-    ppu_mem: Memory,
-    vram: Memory,
+    //ppu_mem: Memory,
+    //vram: Memory,
     ppu_observer: PpuMemObserver,
     mapper_observer: Box<dyn MemObserver>,
     ppu: Rc<RefCell<Ppu>>,
@@ -81,8 +81,8 @@ impl MemController {
     pub fn new(mapper_observer: Box<dyn MemObserver>, ppu: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),
-            ppu_mem: Memory::new_ppu(),
-            vram: Memory::new_vram(),
+            //ppu_mem: Memory::new_ppu(),
+            //vram: Memory::new_vram(),
             ppu_observer: PpuMemObserver::default(),
             mapper_observer,
             ppu,
@@ -145,7 +145,15 @@ impl MemController {
         self.ppu_observer.write_happened(cycle, addr, value);
         self.mapper_observer.write_happened(cycle, addr, value);
 
-        self.cpu_mem.write(addr, value);
+        if addr == 0x4014 { // PPU OAM DMA
+            let dma_start = u16::from_le_bytes([0x00, value]);
+            let dma_slice = self.cpu_mem.get_slice(dma_start, 256);
+
+            let mut ppu = self.ppu.borrow_mut();
+            ppu.oam_dma(dma_slice);
+        } else {
+            self.cpu_mem.write(addr, value);
+        }
     }
 
     /// Load a sequence of bytes into memory, starting at addr.

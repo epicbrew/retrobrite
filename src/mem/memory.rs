@@ -72,4 +72,11 @@ impl Memory {
             self.mem[location] = *value;
         }
     }
+
+    pub fn get_slice(&self, start_addr: u16, size: usize) -> &[u8] {
+        let start = start_addr as usize;
+        let end = start + size;
+
+        &self.mem[start .. end]
+    }
 }

@@ -232,11 +232,15 @@ impl Cpu {
         mc.cpu_mem_read_word(cycle, addr)
     }
 
-    fn do_mem_write(&self, mc: &mut MemController, addr: u16, value: u8) {
+    fn do_mem_write(&mut self, mc: &mut MemController, addr: u16, value: u8) {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
         mc.cpu_mem_write(cycle, addr, value);
+
+        if addr == 0x4014 { // PPU OAM DMA port, takes 513 or 514 cycles
+            self.extra_cycles += 513;
+        }
     }
 
     fn read_byte(&mut self, mc: &mut MemController) -> u8 {
