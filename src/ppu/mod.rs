@@ -50,13 +50,13 @@ struct PpuRegisters {
     /// OAM Data (Cpu: $2004, Bits: dddd dddd).
     /// OAM data read/write.
     /// 
-    oam_data: u8,
+    //oam_data: u8,
 
-    ///
-    /// PPU Scroll (Cpu: $2005, Bits: xxxx xxxx).
-    /// Fine scroll position (two writes: X scroll, Y scroll).
-    /// 
-    ppu_scroll: u8,
+    //
+    // PPU Scroll (Cpu: $2005, Bits: xxxx xxxx).
+    // Fine scroll position (two writes: X scroll, Y scroll).
+    // 
+    //ppu_scroll: u8,
 
     ///
     /// PPU Address (Cpu: $2006, Bits: aaaa aaaa).
@@ -64,24 +64,24 @@ struct PpuRegisters {
     /// 
     ppu_addr: u16,
 
-    ///
-    /// PPU Data (Cpu: $2007, Bits: dddd dddd).
-    /// PPU data read/write.
-    /// 
-    ppu_data: u8,
+    //
+    // PPU Data (Cpu: $2007, Bits: dddd dddd).
+    // PPU data read/write.
+    // 
+    //ppu_data: u8,
 
-    ///
-    /// OAM DMA (Cpu: $4014, Bits: aaaa aaaa).
-    /// OAM DMA high address.
-    /// 
-    oam_dma: u8,
+    //
+    // OAM DMA (Cpu: $4014, Bits: aaaa aaaa).
+    // OAM DMA high address.
+    // 
+    //oam_dma: u8,
 }
 
 #[derive(Default)]
 struct PpuFlags {
-    vblank: bool,
-    hblank: bool,
-    rendering: bool,
+    _vblank: bool,
+    _hblank: bool,
+    _rendering: bool,
 }
 
 ///
@@ -89,7 +89,7 @@ struct PpuFlags {
 /// 
 pub struct Ppu {
     /// PPU flags for bookkeeping.
-    flags: PpuFlags,
+    _flags: PpuFlags,
 
     /// PPU cycle counter.
     cycle_count: u64,
@@ -121,7 +121,7 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            flags: PpuFlags::default(),
+            _flags: PpuFlags::default(),
             cycle_count: 0,
             reg: PpuRegisters::default(),
             //vram_ptr: 0,
@@ -153,6 +153,8 @@ impl Ppu {
     /// register. See nesdev.org PPU Registers page for info.
     pub fn read_2002_ppustatus(&mut self) -> u8 {
         let return_status = self.reg.ppu_status;
+
+        println!("READING PPU STATUS");
 
         // Reading the status register clears bit 7
         utils::clear_bit(7, &mut self.reg.ppu_status);

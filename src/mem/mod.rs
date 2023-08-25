@@ -74,18 +74,18 @@ pub struct MemController {
     //vram: Memory,
     ppu_observer: PpuMemObserver,
     mapper_observer: Box<dyn MemObserver>,
-    ppu: Rc<RefCell<Ppu>>,
+    ppu_ref: Rc<RefCell<Ppu>>,
 }
 
 impl MemController {
-    pub fn new(mapper_observer: Box<dyn MemObserver>, ppu: Rc<RefCell<Ppu>>) -> Self {
+    pub fn new(mapper_observer: Box<dyn MemObserver>, ppu_ref: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),
             //ppu_mem: Memory::new_ppu(),
             //vram: Memory::new_vram(),
             ppu_observer: PpuMemObserver::default(),
             mapper_observer,
-            ppu,
+            ppu_ref,
         }
     }
 
@@ -111,7 +111,18 @@ impl MemController {
         self.ppu_observer.read_happened(cycle, addr);
         self.mapper_observer.read_happened(cycle, addr);
 
-        self.cpu_mem.read(addr)
+        let read_result = match addr {
+            0x2002 => {
+                self.ppu_ref.borrow_mut().read_2002_ppustatus()
+                //let mut ppu = self.ppu_ref.borrow_mut();
+                //ppu.read_2002_ppustatus()
+            },
+            0x2004 => self.ppu_ref.borrow().read_2004_oamdata(),
+            0x2007 => self.ppu_ref.borrow_mut().read_2007_ppudata(),
+                 _ => self.cpu_mem.read(addr),
+        };
+
+        read_result
     }
 
     /// Read from CPU memory without notifying observers.
@@ -138,21 +149,31 @@ impl MemController {
         self.cpu_mem.read_word(addr)
     }
 
-    /// Write an 8-bit value to memory.
+    /// Write an 8-bit value to memory, properly forwarding writes to PPU register
+    /// ports as appropriate.
     pub fn cpu_mem_write(&mut self, cycle: u64, addr: u16, value: u8) {
         let addr = self.get_cpu_effective_address(addr);
 
         self.ppu_observer.write_happened(cycle, addr, value);
         self.mapper_observer.write_happened(cycle, addr, value);
 
-        if addr == 0x4014 { // PPU OAM DMA
-            let dma_start = u16::from_le_bytes([0x00, value]);
-            let dma_slice = self.cpu_mem.get_slice(dma_start, 256);
+        // Handle PPU register address writes if necessary.
+        match addr {
+            0x2000 => self.ppu_ref.borrow_mut().write_2000_ppuctrl(value),
+            0x2001 => self.ppu_ref.borrow_mut().write_2001_ppumask(value),
+            0x2003 => self.ppu_ref.borrow_mut().write_2003_oamaddr(value),
+            0x2004 => self.ppu_ref.borrow_mut().write_2004_oamdata(value),
+            0x2005 => self.ppu_ref.borrow_mut().write_2005_ppuscroll(value),
+            0x2006 => self.ppu_ref.borrow_mut().write_2006_ppuaddr(value),
+            0x2007 => self.ppu_ref.borrow_mut().write_2007_ppudata(value),
+            0x4014 => { // PPU OAM DMA
+                let dma_start = u16::from_le_bytes([0x00, value]);
+                let dma_slice = self.cpu_mem.get_slice(dma_start, 256);
 
-            let mut ppu = self.ppu.borrow_mut();
-            ppu.oam_dma(dma_slice);
-        } else {
-            self.cpu_mem.write(addr, value);
+                let mut ppu = self.ppu_ref.borrow_mut();
+                ppu.oam_dma(dma_slice);
+            },
+            _ => self.cpu_mem.write(addr, value),
         }
     }
 

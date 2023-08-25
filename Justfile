@@ -10,6 +10,6 @@ nestest:
     # Check if our log matches with the nestest "golden" log
     diff -u retrobrite-nestest.log nestest/nestest-retrobrite-formatted.log
 
-test ROM:
+run ROM:
     RUST_LOG=debug cargo run -- "{{ROM}}"
 
