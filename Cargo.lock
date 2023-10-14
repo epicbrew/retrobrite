@@ -179,15 +179,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
-name = "ines"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "929a8b322a4ba174e7afcdce3bdca387b1f3552664ba324a5f503f4200e0cadf"
-dependencies = [
- "log",
-]
-
-[[package]]
 name = "io-lifetimes"
 version = "1.0.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -284,7 +275,6 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "env_logger",
- "ines",
  "log",
 ]
 

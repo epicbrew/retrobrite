@@ -1,6 +1,6 @@
 pub mod nrom000;
 
-use ines::Ines;
+use crate::ines::InesRom;
 use crate::mem::{MemController, MemObserver};
 
 
@@ -8,7 +8,7 @@ pub trait Mapper {
     fn new() -> Self;
     fn name(&self) -> &'static str;
     fn number(&self) -> u16;
-    fn load_rom(&mut self, mc: &mut MemController, ines: &Ines);
+    fn load_rom(&mut self, mc: &mut MemController, ines: &InesRom);
     fn cycle_to(&mut self, mc: &mut MemController, cycle: u64);
     fn get_observer(&self) -> Box<dyn MemObserver>;
 

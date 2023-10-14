@@ -177,9 +177,15 @@ impl MemController {
         }
     }
 
-    /// Load a sequence of bytes into memory, starting at addr.
+    /// Load a sequence of bytes into cpu memory, starting at addr.
     pub fn cpu_mem_load(&mut self, addr: u16, data: &[u8]) {
         let addr = self.get_cpu_effective_address(addr);
         self.cpu_mem.load(addr, data);
+    }
+
+    /// Load a sequence of bytes into ppu memory, starting at addr.
+    pub fn ppu_mem_load(&mut self, addr: u16, data: &[u8]) {
+        let mut ppu = self.ppu_ref.borrow_mut();
+        ppu.mem_load(addr, data);
     }
 }

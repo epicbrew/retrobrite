@@ -1,16 +1,13 @@
 #[macro_use]
 extern crate log;
 extern crate clap;
-extern crate ines;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
-use std::path::{PathBuf, Path};
-use std::fs;
+use std::path::PathBuf;
 use clap::Parser;
-use ines::Ines;
 
 mod utils;
 mod cpu;
@@ -21,6 +18,9 @@ use ppu::Ppu;
 
 mod mem;
 use mem::MemController;
+
+mod ines;
+use ines::InesRom;
 
 use crate::mappers::Mapper;
 
@@ -50,34 +50,22 @@ struct Cli {
     rom_info: bool,
 }
 
-fn parse_rom_file(rom_path: &Path) -> Ines {
-    let file_data = fs::read(&rom_path).expect("could not read rom file");
-
-    match Ines::parse(&file_data) {
-        Ok(ines) => ines,
-        Err(why) => match why {
-            ines::Error::UnimplementedMapper { code } => {
-                 panic!("unimplemented mapper: {}", code)
-            }
-        }
-    }
-}
-
 fn main() {
     env_logger::init();
 
     let cli = Cli::parse();
 
     let rom_path = cli.rom.expect("No rom specifiec (try --help)");
-    let ines_file = parse_rom_file(rom_path.as_path());
+    let ines_file = InesRom::from_path(rom_path.as_path());
 
     if cli.rom_info {
         println!("Rom file: {}", rom_path.display());
-        println!("{:?}", ines_file.header);
+        println!("{:#?}", ines_file.header);
+        println!("sizeof chr-rom: {}", ines_file.chr_rom.len());
         std::process::exit(0);
     }
 
-    let mut mapper = mappers::get_mapper(ines_file.header.mapper as u16);
+    let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
     let mut mc = MemController::new(mapper.get_observer(),
                                     Rc::new(RefCell::new(Ppu::new())));

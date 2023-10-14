@@ -1,5 +1,5 @@
 use super::Mapper;
-use crate::mem::{MemController, MemObserver};
+use crate::{mem::{MemController, MemObserver}, ines};
 
 
 pub struct NromMapper {
@@ -33,12 +33,19 @@ impl Mapper for NromMapper {
         self.number
     }
 
-    fn load_rom(&mut self, mc: &mut MemController, ines: &ines::Ines) {
+    fn load_rom(&mut self, mc: &mut MemController, ines: &ines::InesRom) {
         mc.cpu_mem_load(0x8000, &ines.prg_rom);
     
-        if ines.header.num_prg_rom_blocks == 1 {
+        if ines.header.num_prg_rom_chunks == 1 {
             mc.cpu_mem_load(0xC000, &ines.prg_rom);
         }
+
+        mc.ppu_mem_load(0x0000, &ines.chr_rom);
+
+        //match ines.header.mirroring {
+        //    ines::Mirroring::Horizontal => todo!(),
+        //    ines::Mirroring::Vertical => todo!(),
+        //}
     }
 
     fn cycle_to(&mut self, _mc: &mut MemController, _cycle: u64) {

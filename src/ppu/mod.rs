@@ -227,6 +227,10 @@ impl Ppu {
         self.oam.load(0, data);
     }
 
+    pub fn mem_load(&mut self, addr: u16, data: &[u8]) {
+        self.mem.load(addr, data);
+    }
+
     fn ppu_ctrl_get_base_nametable_addr(&self) -> u16 {
         let index = self.reg.ppu_ctrl & 0x0003;
         match index {
