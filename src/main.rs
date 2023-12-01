@@ -29,7 +29,9 @@ mod mappers;
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
 const CPU_FREQ: u64 = MASTER_CLOCK_HZ / CLOCK_DIVISOR;
+const CPU_CYCLES_PER_FRAME: u64 = CPU_FREQ / 60;
 const NS_PER_CYCLE: u64 = (1.0 / CPU_FREQ as f64 * 1e9) as u64;
+const _NS_PER_FRAME: u64 = CPU_CYCLES_PER_FRAME * NS_PER_CYCLE;
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
@@ -67,8 +69,9 @@ fn main() {
 
     let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
+    let ppu = Rc::new(RefCell::new(Ppu::new()));
     let mut mc = MemController::new(mapper.get_observer(),
-                                    Rc::new(RefCell::new(Ppu::new())));
+                                    Rc::clone(&ppu));
 
     mapper.load_rom(&mut mc, &ines_file);
     //load_prg_rom(&mut mc, &ines_file);
@@ -88,50 +91,62 @@ fn main() {
         cpu.set_program_counter(*pc);
     }
 
-    let cycle_batch = 42;
+    let cycle_batch = CPU_CYCLES_PER_FRAME;
     let mut cycle = 7;
     let mut cycles_this_second = 0;
-    let startup_time = Instant::now();
     let mut last_report = Instant::now();
+
+    let frame_duration = Duration::from_nanos(cycle_batch * NS_PER_CYCLE);
+    let mut frame_count: u64 = 0;
+    let mut last_report_frame_count = frame_count;
 
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
 
-    loop {
-        cycle += cycle_batch;
-        cycles_this_second += cycle_batch;
+    'mainloop: loop {
+        let mut cycles_this_frame: u64 = 0;
 
-        // Clip cycle to max_cycles if necessary
-        if max_cycles > 0 && cycle > max_cycles {
-            cycle = max_cycles;
+        let frame_start = Instant::now();
+
+        while cycles_this_frame < cycle_batch {
+            cycle += 1;
+
+            // Clip cycle to max_cycles if necessary
+            if max_cycles > 0 && cycle > max_cycles {
+                break 'mainloop;
+            }
+
+            cpu.cycle_to(&mut mc, cycle);
+
+            let mut ppu_ref = ppu.borrow_mut();
+            ppu_ref.cycle();
+            ppu_ref.cycle();
+            ppu_ref.cycle();
+
+            cycles_this_frame += 1;
         }
 
-        cpu.cycle_to(&mut mc, cycle);
+        cycles_this_second += cycles_this_frame;
+        frame_count += 1;
+        
+        let frame_time_used = Instant::now() - frame_start;
 
-        let next_cycle_offset = Duration::from_nanos(cycle * NS_PER_CYCLE); 
-        let next_cycle_time = startup_time + next_cycle_offset;
-        let sleep_time = next_cycle_time - Instant::now();
+        if frame_time_used < frame_duration {
+          let sleep_time = frame_duration - frame_time_used;
+          sleep(sleep_time);
+          //info!("last sleep_time: {}ms", sleep_time.as_millis());
+        }
 
-        sleep(sleep_time);
-
-        //if cycle % CPU_FREQ == 0 {
         if cycles_this_second >= CPU_FREQ {
-            info!("elapsed time for 1s cycle: {}ms, cycles this second: {}",
-                  last_report.elapsed().as_millis(), cycles_this_second);
-            debug!("last sleep_time: {}ns", sleep_time.as_nanos());
+            let fps = frame_count - last_report_frame_count;
+
+            info!("elapsed time for 1s cycle: {}ms, cycles this second: {}, fps: {}",
+                  last_report.elapsed().as_millis(), cycles_this_second, fps);
+
             last_report = Instant::now();
             cycles_this_second = 0;
+            last_report_frame_count = frame_count;
         }
-
-        if max_cycles > 0 && cycle >= max_cycles {
-            break;
-        }
-        //if let Some(cycles_to_run) = cli.cycles.as_ref() {
-        //    if cycle >= *cycles_to_run {
-        //        break;
-        //    }
-        //}
-
     }
 }

@@ -135,6 +135,11 @@ impl Ppu {
         }
     }
 
+    pub fn cycle(&mut self) {
+        self.cycle_count += 1;
+        return;
+    }
+
     /// Write to ppuctrl register.
     pub fn write_2000_ppuctrl(&mut self, value: u8) {
         if self.cycle_count < 30000 {
@@ -154,7 +159,7 @@ impl Ppu {
     pub fn read_2002_ppustatus(&mut self) -> u8 {
         let return_status = self.reg.ppu_status;
 
-        println!("READING PPU STATUS");
+        //println!("READING PPU STATUS");
 
         // Reading the status register clears bit 7
         utils::clear_bit(7, &mut self.reg.ppu_status);

@@ -11,5 +11,11 @@ nestest:
     diff -u retrobrite-nestest.log nestest/nestest-retrobrite-formatted.log
 
 run ROM:
+    RUST_LOG=info cargo run -- "{{ROM}}"
+
+dubugrun ROM:
     RUST_LOG=debug cargo run -- "{{ROM}}"
+
+runrelease ROM:
+    RUST_LOG=info cargo run --release -- "{{ROM}}"
 
