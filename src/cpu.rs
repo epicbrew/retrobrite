@@ -1332,19 +1332,8 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::mem::MemObserver;
     use crate::ppu::Ppu;
 
-    #[derive(Default)]
-    struct DummyObserver;
-
-    impl MemObserver for DummyObserver {
-        fn read_happened(&mut self, _cycle: u64, _addr: u16) {
-        }
-        fn write_happened(&mut self, _cycle: u64, _addr: u16, _value: u8) {
-        }
-    }
-    
     impl Cpu {
         pub fn default() -> Self {
             Self {
@@ -1362,7 +1351,6 @@ mod tests {
 
     fn get_mem_controller() -> MemController {
         MemController::new(
-            Box::new(DummyObserver),
             Rc::new(RefCell::new(Ppu::new())),
         )
     }

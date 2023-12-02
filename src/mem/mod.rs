@@ -1,66 +1,8 @@
-use std::{collections::VecDeque, cell::RefCell, rc::Rc};
+use std::{cell::RefCell, rc::Rc};
 pub mod memory;
 use memory::Memory;
 
 use crate::ppu::Ppu;
-
-pub enum MemEvent {
-    MemRead{ cycle: u64, addr: u16 },
-    MemWrite{ cycle: u64, addr: u16, value: u8 },
-}
-
-pub trait MemObserver {
-    //fn read_happened(&self, addr: u16) -> Option<MemEvent>;
-    //fn write_happened(&self, addr: u16, value: u8) -> Option<MemEvent>;
-    fn read_happened(&mut self, cycle: u64, addr: u16);
-    fn write_happened(&mut self, cycle: u64, addr: u16, value: u8);
-}
-
-///
-/// Observer for memory read/writes significant to the PPU.
-///
-#[derive(Default)]
-struct PpuMemObserver {
-    pub events: VecDeque<MemEvent>,
-}
-
-impl MemObserver for PpuMemObserver {
-    //fn read_happened(&self, addr: u16) -> Option<MemEvent> {
-    //    match addr {
-    //        0x2002 => Some(MemEvent::MemRead(addr)),
-    //        0x2004 => Some(MemEvent::MemRead(addr)),
-    //        0x2007 => Some(MemEvent::MemRead(addr)),
-    //        _ => None,
-    //    }
-    //}
-    fn read_happened(&mut self, cycle: u64, addr: u16) {
-        if let Some(event) = match addr {
-            0x2002 => Some(MemEvent::MemRead{cycle, addr}),
-            0x2004 => Some(MemEvent::MemRead{cycle, addr}),
-            0x2007 => Some(MemEvent::MemRead{cycle, addr}),
-            _ => None,
-        }{
-            self.events.push_back(event);
-        }
-    }
-
-    fn write_happened(&mut self, cycle: u64, addr: u16, value: u8) {
-        if let Some(event) = match addr {
-            0x2000 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2001 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2003 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2004 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2005 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2006 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x2007 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            0x4014 => Some(MemEvent::MemWrite{cycle, addr, value}),
-            _ => None,
-        }{
-            self.events.push_back(event);
-        }
-    }
-}
-
 
 ///
 /// This structure contains state data that needs to be accessed by multiple
@@ -70,21 +12,13 @@ impl MemObserver for PpuMemObserver {
 /// 
 pub struct MemController {
     cpu_mem: Memory,
-    //ppu_mem: Memory,
-    //vram: Memory,
-    ppu_observer: PpuMemObserver,
-    mapper_observer: Box<dyn MemObserver>,
     ppu_ref: Rc<RefCell<Ppu>>,
 }
 
 impl MemController {
-    pub fn new(mapper_observer: Box<dyn MemObserver>, ppu_ref: Rc<RefCell<Ppu>>) -> Self {
+    pub fn new(ppu_ref: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),
-            //ppu_mem: Memory::new_ppu(),
-            //vram: Memory::new_vram(),
-            ppu_observer: PpuMemObserver::default(),
-            mapper_observer,
             ppu_ref,
         }
     }
@@ -105,11 +39,8 @@ impl MemController {
     }
 
     /// Read from CPU memory and notify observers.
-    pub fn cpu_mem_read(&mut self, cycle: u64, addr: u16) -> u8 {
+    pub fn cpu_mem_read(&mut self, _cycle: u64, addr: u16) -> u8 {
         let addr = self.get_cpu_effective_address(addr);
-
-        self.ppu_observer.read_happened(cycle, addr);
-        self.mapper_observer.read_happened(cycle, addr);
 
         let read_result = match addr {
             0x2002 => {
@@ -125,21 +56,15 @@ impl MemController {
         read_result
     }
 
-    /// Read from CPU memory without notifying observers.
+    /// Read from CPU memory
     pub fn _raw_cpu_mem_read(&self, addr: u16) -> u8 {
         let addr = self.get_cpu_effective_address(addr);
         self.cpu_mem.read(addr)
     }
 
-    /// Read a 16-bit value from memory and notify observers.
-    pub fn cpu_mem_read_word(&mut self, cycle: u64, addr: u16) -> u16 {
+    /// Read a 16-bit value from memory.
+    pub fn cpu_mem_read_word(&mut self, _cycle: u64, addr: u16) -> u16 {
         let addr = self.get_cpu_effective_address(addr);
-
-        self.ppu_observer.read_happened(cycle, addr);
-        self.ppu_observer.read_happened(cycle, addr + 1);
-        self.mapper_observer.read_happened(cycle, addr);
-        self.mapper_observer.read_happened(cycle, addr + 1);
-
         self.cpu_mem.read_word(addr)
     }
     
@@ -151,11 +76,8 @@ impl MemController {
 
     /// Write an 8-bit value to memory, properly forwarding writes to PPU register
     /// ports as appropriate.
-    pub fn cpu_mem_write(&mut self, cycle: u64, addr: u16, value: u8) {
+    pub fn cpu_mem_write(&mut self, _cycle: u64, addr: u16, value: u8) {
         let addr = self.get_cpu_effective_address(addr);
-
-        self.ppu_observer.write_happened(cycle, addr, value);
-        self.mapper_observer.write_happened(cycle, addr, value);
 
         // Handle PPU register address writes if necessary.
         match addr {

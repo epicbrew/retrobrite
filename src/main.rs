@@ -70,8 +70,7 @@ fn main() {
     let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
     let ppu = Rc::new(RefCell::new(Ppu::new()));
-    let mut mc = MemController::new(mapper.get_observer(),
-                                    Rc::clone(&ppu));
+    let mut mc = MemController::new(Rc::clone(&ppu));
 
     mapper.load_rom(&mut mc, &ines_file);
     //load_prg_rom(&mut mc, &ines_file);

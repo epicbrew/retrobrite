@@ -1,20 +1,11 @@
 use super::Mapper;
-use crate::{mem::{MemController, MemObserver}, ines};
+use crate::mem::MemController;
+use crate::ines;
 
 
 pub struct NromMapper {
     name: &'static str,
     number: u16,
-}
-
-struct NromObserver;
-
-impl MemObserver for NromObserver {
-    fn read_happened(&mut self, _cycle: u64, _addr: u16) {
-    }
-
-    fn write_happened(&mut self, _cycle: u64, _addr: u16, _value: u8) {
-    }
 }
 
 impl Mapper for NromMapper {
@@ -50,9 +41,5 @@ impl Mapper for NromMapper {
 
     fn cycle_to(&mut self, _mc: &mut MemController, _cycle: u64) {
         // NROM doesn't do anything
-    }
-
-    fn get_observer(&self) -> Box<dyn MemObserver> {
-        Box::new(NromObserver)
     }
 }
