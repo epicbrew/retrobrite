@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
-pub mod memory;
-use memory::Memory;
+//pub mod memory;
+use crate::mem::Memory;
 
 use crate::ppu::Ppu;
 

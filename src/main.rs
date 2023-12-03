@@ -17,7 +17,9 @@ mod ppu;
 use ppu::Ppu;
 
 mod mem;
-use mem::NesState;
+
+mod state;
+use state::NesState;
 
 mod ines;
 use ines::InesRom;

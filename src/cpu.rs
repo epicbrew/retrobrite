@@ -1,6 +1,5 @@
 use crate::utils;
-use crate::mem::NesState;
-//use crate::mem::Memory;
+use crate::state::NesState;
 
 mod constants;
 use constants::*;

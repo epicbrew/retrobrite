@@ -1,5 +1,5 @@
 use super::Mapper;
-use crate::mem::NesState;
+use crate::state::NesState;
 use crate::ines;
 
 
@@ -24,14 +24,14 @@ impl Mapper for NromMapper {
         self.number
     }
 
-    fn load_rom(&mut self, mc: &mut NesState, ines: &ines::InesRom) {
-        mc.cpu_mem_load(0x8000, &ines.prg_rom);
+    fn load_rom(&mut self, state: &mut NesState, ines: &ines::InesRom) {
+        state.cpu_mem_load(0x8000, &ines.prg_rom);
     
         if ines.header.num_prg_rom_chunks == 1 {
-            mc.cpu_mem_load(0xC000, &ines.prg_rom);
+            state.cpu_mem_load(0xC000, &ines.prg_rom);
         }
 
-        mc.ppu_mem_load(0x0000, &ines.chr_rom);
+        state.ppu_mem_load(0x0000, &ines.chr_rom);
 
         //match ines.header.mirroring {
         //    ines::Mirroring::Horizontal => todo!(),
@@ -39,7 +39,7 @@ impl Mapper for NromMapper {
         //}
     }
 
-    fn cycle_to(&mut self, _mc: &mut NesState, _cycle: u64) {
+    fn cycle_to(&mut self, _state: &mut NesState, _cycle: u64) {
         // NROM doesn't do anything
     }
 }
