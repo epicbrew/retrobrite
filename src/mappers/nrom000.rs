@@ -1,5 +1,5 @@
 use super::Mapper;
-use crate::mem::MemController;
+use crate::mem::NesState;
 use crate::ines;
 
 
@@ -24,7 +24,7 @@ impl Mapper for NromMapper {
         self.number
     }
 
-    fn load_rom(&mut self, mc: &mut MemController, ines: &ines::InesRom) {
+    fn load_rom(&mut self, mc: &mut NesState, ines: &ines::InesRom) {
         mc.cpu_mem_load(0x8000, &ines.prg_rom);
     
         if ines.header.num_prg_rom_chunks == 1 {
@@ -39,7 +39,7 @@ impl Mapper for NromMapper {
         //}
     }
 
-    fn cycle_to(&mut self, _mc: &mut MemController, _cycle: u64) {
+    fn cycle_to(&mut self, _mc: &mut NesState, _cycle: u64) {
         // NROM doesn't do anything
     }
 }

@@ -10,12 +10,12 @@ use crate::ppu::Ppu;
 /// registers. This structure is passed to the CPU, Mapper, PPU, and APU
 /// when it's their turn to cycle.
 /// 
-pub struct MemController {
+pub struct NesState {
     cpu_mem: Memory,
     ppu_ref: Rc<RefCell<Ppu>>,
 }
 
-impl MemController {
+impl NesState {
     pub fn new(ppu_ref: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),
