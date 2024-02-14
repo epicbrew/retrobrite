@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
-pub mod memory;
-use memory::Memory;
+//pub mod memory;
+use crate::mem::Memory;
 
 use crate::ppu::Ppu;
 
@@ -10,12 +10,12 @@ use crate::ppu::Ppu;
 /// registers. This structure is passed to the CPU, Mapper, PPU, and APU
 /// when it's their turn to cycle.
 /// 
-pub struct MemController {
+pub struct NesState {
     cpu_mem: Memory,
     ppu_ref: Rc<RefCell<Ppu>>,
 }
 
-impl MemController {
+impl NesState {
     pub fn new(ppu_ref: Rc<RefCell<Ppu>>) -> Self {
         Self {
             cpu_mem: Memory::new_cpu(),

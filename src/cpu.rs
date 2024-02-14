@@ -1,12 +1,11 @@
 use crate::utils;
-use crate::mem::MemController;
-//use crate::mem::Memory;
+use crate::state::NesState;
 
 mod constants;
 use constants::*;
 
 /// Function type for Cpu operations.
-type CpuOp = fn(&mut Cpu, mc: &mut MemController);
+type CpuOp = fn(&mut Cpu, state: &mut NesState);
 
 /// Represents a CPU instruction/opcode.
 struct Instruction {
@@ -96,7 +95,7 @@ pub struct Cpu {
 
 impl Cpu {
 
-    pub fn new(mc: &MemController) -> Self {
+    pub fn new(state: &NesState) -> Self {
         let mut new_self = Self {
             reg: Registers::default(),
             //mem,
@@ -112,7 +111,7 @@ impl Cpu {
         new_self.reg.A = 0;
         new_self.reg.X = 0;
         new_self.reg.Y = 0;
-        new_self.reg.PC = mc.raw_cpu_mem_read_word(0xFFFC);
+        new_self.reg.PC = state.raw_cpu_mem_read_word(0xFFFC);
         new_self.reg.SP = 0xFD;
         new_self.reg.P = 0x24;
 
@@ -121,11 +120,11 @@ impl Cpu {
 
     ///
     /// Reset CPU as if NES reset button was pressed.
-    /// Using reset mc documented here:
-    ///     https://www.nesdev.org/wiki/CPU_power_up_mc
+    /// Using reset state documented here:
+    ///     https://www.nesdev.org/wiki/CPU_power_up_state
     /// 
-    pub fn _reset(&mut self, mc: &mut MemController) {
-        self.reg.PC = mc.raw_cpu_mem_read_word(0xFFFC);
+    pub fn _reset(&mut self, state: &mut NesState) {
+        self.reg.PC = state.raw_cpu_mem_read_word(0xFFFC);
         self.reg.SP -= 3; 
         self.reg.P = 0x34; // Not sure if this is correct
     }
@@ -135,9 +134,9 @@ impl Cpu {
     /// Note the CPU may overshoot the given cycle number by the amount of
     /// cycles used by the last instruction.
     /// 
-    pub fn cycle_to(&mut self, mc: &mut MemController, cycle: u64) {
+    pub fn cycle_to(&mut self, state: &mut NesState, cycle: u64) {
         while self.cycle_count < cycle {
-            let cycles_used = self.execute(mc);
+            let cycles_used = self.execute(state);
             self.cycle_count += cycles_used;
         }
     }
@@ -147,7 +146,7 @@ impl Cpu {
         self.reg.PC = addr;
     }
 
-    fn execute(&mut self, mc: &mut MemController) -> u64 {
+    fn execute(&mut self, state: &mut NesState) -> u64 {
         // Clear our bookkeeping vector
         self.bytes_consumed.clear();
 
@@ -155,18 +154,18 @@ impl Cpu {
         let instruction_address = self.reg.PC;
 
         // Read next opcode
-        self.opcode = self.read_byte(mc);
+        self.opcode = self.read_byte(state);
         let idx = self.opcode as usize;
         let instruction = &Cpu::OP_CODES[idx];
 
         self.page_penalty = 0;
         self.extra_cycles = 0;
-        self.set_operand_address(mc, &instruction.addr_mode);
+        self.set_operand_address(state, &instruction.addr_mode);
 
         self.print_log_line(instruction, instruction_address);
 
         // Execute 
-        (instruction.func)(self, mc);
+        (instruction.func)(self, state);
 
         let total_cycles = instruction.cycles + self.extra_cycles;
 
@@ -218,41 +217,41 @@ impl Cpu {
     /// to the current cycle count (current cycle count is still reflecting
     /// the last instruction's cycles during the execution of a new instruction).
     /// 
-    fn do_mem_read(&self, mc: &mut MemController, addr: u16) -> u8 {
+    fn do_mem_read(&self, state: &mut NesState, addr: u16) -> u8 {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        mc.cpu_mem_read(cycle, addr)
+        state.cpu_mem_read(cycle, addr)
     }
 
-    fn do_mem_read_word(&self, mc: &mut MemController, addr: u16) -> u16 {
+    fn do_mem_read_word(&self, state: &mut NesState, addr: u16) -> u16 {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        mc.cpu_mem_read_word(cycle, addr)
+        state.cpu_mem_read_word(cycle, addr)
     }
 
-    fn do_mem_write(&mut self, mc: &mut MemController, addr: u16, value: u8) {
+    fn do_mem_write(&mut self, state: &mut NesState, addr: u16, value: u8) {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        mc.cpu_mem_write(cycle, addr, value);
+        state.cpu_mem_write(cycle, addr, value);
 
         if addr == 0x4014 { // PPU OAM DMA port, takes 513 or 514 cycles
             self.extra_cycles += 513;
         }
     }
 
-    fn read_byte(&mut self, mc: &mut MemController) -> u8 {
-        let next_byte = self.do_mem_read(mc, self.reg.PC);
+    fn read_byte(&mut self, state: &mut NesState) -> u8 {
+        let next_byte = self.do_mem_read(state, self.reg.PC);
         self.bytes_consumed.push(next_byte);
         self.reg.PC += 1;
         next_byte
     }
 
-    fn read_word(&mut self, mc: &mut MemController) -> u16 {
-        let lsb = self.read_byte(mc) as u16;
-        let msb = self.read_byte(mc) as u16;
+    fn read_word(&mut self, state: &mut NesState) -> u16 {
+        let lsb = self.read_byte(state) as u16;
+        let msb = self.read_byte(state) as u16;
 
         (msb << 8) | lsb
     }
@@ -261,29 +260,29 @@ impl Cpu {
         self.operand_value = self.reg.A;
     }
 
-    fn addr_mode_imm(&mut self, mc: &mut MemController) {
-        self.operand_value = self.read_byte(mc);
+    fn addr_mode_imm(&mut self, state: &mut NesState) {
+        self.operand_value = self.read_byte(state);
     }
 
-    fn addr_mode_abs(&mut self, mc: &mut MemController) {
-        self.operand_address = self.read_word(mc);
+    fn addr_mode_abs(&mut self, state: &mut NesState) {
+        self.operand_address = self.read_word(state);
     }
 
-    fn addr_mode_abx(&mut self, mc: &mut MemController) {
-        let base_addres = self.read_word(mc);
+    fn addr_mode_abx(&mut self, state: &mut NesState) {
+        let base_addres = self.read_word(state);
         self.operand_address = base_addres.wrapping_add(self.reg.X as u16);
         let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
     }
 
-    fn addr_mode_aby(&mut self, mc: &mut MemController) {
-        let base_addres = self.read_word(mc);
+    fn addr_mode_aby(&mut self, state: &mut NesState) {
+        let base_addres = self.read_word(state);
         self.operand_address = base_addres.wrapping_add(self.reg.Y as u16);
         let add_cycles = if utils::same_page(base_addres, self.operand_address) { 0 } else { 1 };
         self.page_penalty = add_cycles;
     }
 
-    fn addr_mode_ind(&mut self, mc: &mut MemController) {
+    fn addr_mode_ind(&mut self, state: &mut NesState) {
         //
         // The following mimics a bug in the 6502 as described by the obelisk
         // 6502 reference as: "An original 6502 has does not correctly fetch the target 
@@ -291,45 +290,45 @@ impl Cpu {
         // is any value from $00 to $FF). In this case fetches the LSB from $xxFF as
         // expected but takes the MSB from $xx00."
         //
-        let lsb_addr = self.read_word(mc);
+        let lsb_addr = self.read_word(state);
         let msb_addr = if lsb_addr & 0x00FF == 0x00FF {
             lsb_addr & 0xFF00
         } else {
             lsb_addr + 1
         };
 
-        let target_lsb = self.do_mem_read(mc, lsb_addr);
-        let target_msb = self.do_mem_read(mc, msb_addr);
+        let target_lsb = self.do_mem_read(state, lsb_addr);
+        let target_msb = self.do_mem_read(state, msb_addr);
 
         self.operand_address = u16::from_le_bytes([target_lsb, target_msb]);
     }
 
-    fn addr_mode_izx(&mut self, mc: &mut MemController) {
-        let zp_addr = self.read_byte(mc).wrapping_add(self.reg.X);
+    fn addr_mode_izx(&mut self, state: &mut NesState) {
+        let zp_addr = self.read_byte(state).wrapping_add(self.reg.X);
 
         if zp_addr == 0xFF {
             // Need to wrap around the zero page boundary to read memory address
             // from 0x00FF and 0x0000 
-            let lsb = self.do_mem_read(mc, zp_addr as u16);
-            let msb = self.do_mem_read(mc, 0x00);
+            let lsb = self.do_mem_read(state, zp_addr as u16);
+            let msb = self.do_mem_read(state, 0x00);
             self.operand_address = u16::from_le_bytes([lsb, msb]);
         } else {
-            self.operand_address = self.do_mem_read_word(mc, zp_addr as u16);
+            self.operand_address = self.do_mem_read_word(state, zp_addr as u16);
         }
         //self.operand_value = self.mem.read(self.operand_address);
     }
 
-    fn addr_mode_izy(&mut self, mc: &mut MemController) {
-        let zp_addr = self.read_byte(mc);
+    fn addr_mode_izy(&mut self, state: &mut NesState) {
+        let zp_addr = self.read_byte(state);
         let base_addr = if zp_addr == 0xFF {
             // Need to wrap around the zero page boundary to read memory address
             // from 0x00FF and 0x0000 
-            let lsb = self.do_mem_read(mc, zp_addr as u16);
-            let msb = self.do_mem_read(mc, 0x00);
+            let lsb = self.do_mem_read(state, zp_addr as u16);
+            let msb = self.do_mem_read(state, 0x00);
             u16::from_le_bytes([lsb, msb])
         }
         else {
-            self.do_mem_read_word(mc, zp_addr as u16)
+            self.do_mem_read_word(state, zp_addr as u16)
         };
         self.operand_address = base_addr.wrapping_add(self.reg.Y as u16);
         let add_cycles = if utils::same_page(base_addr, self.operand_address) { 0 } else { 1 };
@@ -337,40 +336,40 @@ impl Cpu {
         //self.operand_value = self.mem.read(self.operand_address);
     }
 
-    fn addr_mode_zp(&mut self, mc: &mut MemController) {
-        self.operand_address = self.read_byte(mc) as u16;
+    fn addr_mode_zp(&mut self, state: &mut NesState) {
+        self.operand_address = self.read_byte(state) as u16;
         //self.operand_value = self.mem.read(self.operand_address);
     }
 
-    fn addr_mode_zpx(&mut self, mc: &mut MemController) {
-        let zp_addr = self.read_byte(mc).wrapping_add(self.reg.X);
+    fn addr_mode_zpx(&mut self, state: &mut NesState) {
+        let zp_addr = self.read_byte(state).wrapping_add(self.reg.X);
         self.operand_address = zp_addr as u16;
         //self.operand_value = self.mem.read(self.operand_address);
     }
 
-    fn addr_mode_zpy(&mut self, mc: &mut MemController) {
-        let zp_addr = self.read_byte(mc).wrapping_add(self.reg.Y);
+    fn addr_mode_zpy(&mut self, state: &mut NesState) {
+        let zp_addr = self.read_byte(state).wrapping_add(self.reg.Y);
         self.operand_address = zp_addr as u16;
         //self.operand_value = self.mem.read(self.operand_address);
     }
 
-    fn addr_mode_rel(&mut self, mc: &mut MemController) {
-        self.operand_value = self.read_byte(mc);
+    fn addr_mode_rel(&mut self, state: &mut NesState) {
+        self.operand_value = self.read_byte(state);
     }
 
-    fn set_operand_address(&mut self, mc: &mut MemController, addr_mode: &AddrMode) {
+    fn set_operand_address(&mut self, state: &mut NesState, addr_mode: &AddrMode) {
         match addr_mode {
-            AddrMode::IMM => self.addr_mode_imm(mc),
-            AddrMode::ABS => self.addr_mode_abs(mc),
-            AddrMode::ZP  => self.addr_mode_zp(mc),
-            AddrMode::IND => self.addr_mode_ind(mc),
-            AddrMode::ABX => self.addr_mode_abx(mc),
-            AddrMode::ABY => self.addr_mode_aby(mc),
-            AddrMode::ZPX => self.addr_mode_zpx(mc),
-            AddrMode::ZPY => self.addr_mode_zpy(mc),
-            AddrMode::IZX => self.addr_mode_izx(mc),
-            AddrMode::IZY => self.addr_mode_izy(mc),
-            AddrMode::REL => self.addr_mode_rel(mc),
+            AddrMode::IMM => self.addr_mode_imm(state),
+            AddrMode::ABS => self.addr_mode_abs(state),
+            AddrMode::ZP  => self.addr_mode_zp(state),
+            AddrMode::IND => self.addr_mode_ind(state),
+            AddrMode::ABX => self.addr_mode_abx(state),
+            AddrMode::ABY => self.addr_mode_aby(state),
+            AddrMode::ZPX => self.addr_mode_zpx(state),
+            AddrMode::ZPY => self.addr_mode_zpy(state),
+            AddrMode::IZX => self.addr_mode_izx(state),
+            AddrMode::IZY => self.addr_mode_izy(state),
+            AddrMode::REL => self.addr_mode_rel(state),
             AddrMode::ACC => self.addr_mode_acc(),
             AddrMode::IMP => {},
             AddrMode::UNK => {},
@@ -381,21 +380,21 @@ impl Cpu {
     /// Fetches operands that need to be read from memory using the operand
     /// address set during the addr_mode function.
     /// 
-    fn fetch_operand(&mut self, mc: &mut MemController) {
+    fn fetch_operand(&mut self, state: &mut NesState) {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
 
         match instruction.addr_mode {
             AddrMode::IMM => {}, // read_byte() called during addr_mode_imm()
-            AddrMode::ABS => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::ZP  => self.operand_value = self.do_mem_read(mc, self.operand_address),
+            AddrMode::ABS => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::ZP  => self.operand_value = self.do_mem_read(state, self.operand_address),
             AddrMode::IMP => {},
             AddrMode::IND => {},
-            AddrMode::ABX => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::ABY => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::ZPX => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::ZPY => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::IZX => self.operand_value = self.do_mem_read(mc, self.operand_address),
-            AddrMode::IZY => self.operand_value = self.do_mem_read(mc, self.operand_address),
+            AddrMode::ABX => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::ABY => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::ZPX => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::ZPY => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::IZX => self.operand_value = self.do_mem_read(state, self.operand_address),
+            AddrMode::IZY => self.operand_value = self.do_mem_read(state, self.operand_address),
             AddrMode::REL => {}, // read_byte() called during addr_mode_rel()
             AddrMode::ACC => {},
             AddrMode::UNK => {},
@@ -480,38 +479,38 @@ impl Cpu {
     }
 
     /// Push a value onto the stack.
-    fn stack_push(&mut self, mc: &mut MemController, value: u8) {
+    fn stack_push(&mut self, state: &mut NesState, value: u8) {
         // 6502 implements an "empty" stack, so SP points to next empty slot
         let push_addr: u16 = 0x0100 + self.reg.SP as u16;
-        self.do_mem_write(mc, push_addr, value);
+        self.do_mem_write(state, push_addr, value);
         self.reg.SP = self.reg.SP.wrapping_sub(1);
     }
 
     /// Pull a value from the stack.
-    fn stack_pull(&mut self, mc: &mut MemController) -> u8 {
+    fn stack_pull(&mut self, state: &mut NesState) -> u8 {
         // increment SP to point to the top value of the stack
         self.reg.SP = self.reg.SP.wrapping_add(1);
         let pull_addr: u16 = 0x0100 + self.reg.SP as u16;
 
-        self.do_mem_read(mc, pull_addr)
+        self.do_mem_read(state, pull_addr)
     }
 
     /// Push u16 value onto stack.
-    fn stack_push_word(&mut self, mc: &mut MemController, value: u16) {
+    fn stack_push_word(&mut self, state: &mut NesState, value: u16) {
         let le_bytes = value.to_le_bytes();
-        self.stack_push(mc, le_bytes[1]);
-        self.stack_push(mc, le_bytes[0]);
+        self.stack_push(state, le_bytes[1]);
+        self.stack_push(state, le_bytes[0]);
     }
 
-    fn stack_pull_word(&mut self, mc: &mut MemController) -> u16 {
-        let lsb = self.stack_pull(mc);
-        let msb = self.stack_pull(mc);
+    fn stack_pull_word(&mut self, state: &mut NesState) -> u16 {
+        let lsb = self.stack_pull(state);
+        let msb = self.stack_pull(state);
         u16::from_le_bytes([lsb, msb])
     }
 
     /// Helper function that sets P from stack while disregarding bits 4 and 5.
-    fn set_p_from_stack(&mut self, mc: &mut MemController) {
-        let stack_value = self.stack_pull(mc);
+    fn set_p_from_stack(&mut self, state: &mut NesState) {
+        let stack_value = self.stack_pull(state);
         utils::set_bit_from(0, stack_value, &mut self.reg.P);
         utils::set_bit_from(1, stack_value, &mut self.reg.P);
         utils::set_bit_from(2, stack_value, &mut self.reg.P);
@@ -523,15 +522,15 @@ impl Cpu {
     //
     // CPU Instructions
     //
-    fn and(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn and(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.A &= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
-    fn adc(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn adc(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
 
@@ -559,8 +558,8 @@ impl Cpu {
         self.apply_page_penalty();
     }
 
-    fn asl(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn asl(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         // Move bit 7 of operand value into carry flag
         if utils::bit_is_set(7, self.operand_value) {
@@ -578,27 +577,27 @@ impl Cpu {
         // Put result in A or memory depending on addressing mode
         match instruction.addr_mode {
             AddrMode::ACC => self.reg.A = result,
-            _ => self.do_mem_write(mc, self.operand_address, result),
+            _ => self.do_mem_write(state, self.operand_address, result),
         };
     }
 
-    fn bcc(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bcc(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_clear(PS_C_BIT);
     }
 
-    fn bcs(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bcs(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_set(PS_C_BIT);
     }
 
-    fn beq(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn beq(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_set(PS_Z_BIT);
     }
 
-    fn bit(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bit(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         let and_result = self.reg.A & self.operand_value;
         self.update_processor_status_z_flag(and_result);
@@ -607,56 +606,56 @@ impl Cpu {
         utils::set_bit_from(7, self.operand_value, &mut self.reg.P);
     }
 
-    fn bmi(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bmi(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_set(PS_N_BIT);
     }
 
-    fn bne(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bne(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_clear(PS_Z_BIT);
     }
 
-    fn bpl(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bpl(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_clear(PS_N_BIT);
     }
 
-    fn brk(&mut self, mc: &mut MemController) {
-        self.stack_push_word(mc, self.reg.PC);
+    fn brk(&mut self, state: &mut NesState) {
+        self.stack_push_word(state, self.reg.PC);
 
         let mut p_val = self.reg.P;
         utils::set_bit(4, &mut p_val);
         utils::set_bit(5, &mut p_val);
-        self.stack_push(mc, p_val);
+        self.stack_push(state, p_val);
 
-        self.reg.PC = self.do_mem_read_word(mc, 0xFFFE);
+        self.reg.PC = self.do_mem_read_word(state, 0xFFFE);
         utils::set_bit(PS_B_BIT, &mut self.reg.P);
     }
 
-    fn bvc(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bvc(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_clear(PS_V_BIT);
     }
 
-    fn bvs(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn bvs(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.branch_if_set(PS_V_BIT);
     }
 
-    fn clc(&mut self, _mc: &mut MemController) {
+    fn clc(&mut self, _state: &mut NesState) {
         utils::clear_bit(PS_C_BIT, &mut self.reg.P);
     }
 
-    fn cld(&mut self, _mc: &mut MemController) {
+    fn cld(&mut self, _state: &mut NesState) {
         utils::clear_bit(PS_D_BIT, &mut self.reg.P);
     }
 
-    fn cli(&mut self, _mc: &mut MemController) {
+    fn cli(&mut self, _state: &mut NesState) {
         utils::clear_bit(PS_I_BIT, &mut self.reg.P);
     }
 
-    fn clv(&mut self, _mc: &mut MemController) {
+    fn clv(&mut self, _state: &mut NesState) {
         utils::clear_bit(PS_V_BIT, &mut self.reg.P);
     }
 
@@ -677,122 +676,122 @@ impl Cpu {
         utils::set_bit_from(PS_N_BIT, result, &mut self.reg.P);
     }
 
-    fn cmp(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn cmp(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.do_comparison(self.reg.A, self.operand_value);
         self.apply_page_penalty();
     }
 
-    fn cpx(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn cpx(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.do_comparison(self.reg.X, self.operand_value);
     }
 
-    fn cpy(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn cpy(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.do_comparison(self.reg.Y, self.operand_value);
     }
 
-    fn dcp(&mut self, mc: &mut MemController) {
-        let mut value = self.do_mem_read(mc, self.operand_address);
+    fn dcp(&mut self, state: &mut NesState) {
+        let mut value = self.do_mem_read(state, self.operand_address);
         value = value.wrapping_sub(1);
         self.update_processor_status_nz_flags(value);
-        self.do_mem_write(mc, self.operand_address, value);
+        self.do_mem_write(state, self.operand_address, value);
 
         self.do_comparison(self.reg.A, value);
     }
 
-    fn dec(&mut self, mc: &mut MemController) {
-        let mut value = self.do_mem_read(mc, self.operand_address);
+    fn dec(&mut self, state: &mut NesState) {
+        let mut value = self.do_mem_read(state, self.operand_address);
         value = value.wrapping_sub(1);
         self.update_processor_status_nz_flags(value);
-        self.do_mem_write(mc, self.operand_address, value);
+        self.do_mem_write(state, self.operand_address, value);
     }
 
-    fn dex(&mut self, _mc: &mut MemController) {
+    fn dex(&mut self, _state: &mut NesState) {
         self.reg.X = self.reg.X.wrapping_sub(1);
         self.update_processor_status_nz_flags(self.reg.X);
     }
 
-    fn dey(&mut self, _mc: &mut MemController) {
+    fn dey(&mut self, _state: &mut NesState) {
         self.reg.Y = self.reg.Y.wrapping_sub(1);
         self.update_processor_status_nz_flags(self.reg.Y);
     }
 
-    fn eor(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn eor(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.A ^= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
-    fn inc(&mut self, mc: &mut MemController) {
-        let mut value = self.do_mem_read(mc, self.operand_address);
+    fn inc(&mut self, state: &mut NesState) {
+        let mut value = self.do_mem_read(state, self.operand_address);
         value = value.wrapping_add(1);
         self.update_processor_status_nz_flags(value);
-        self.do_mem_write(mc, self.operand_address, value);
+        self.do_mem_write(state, self.operand_address, value);
     }
 
-    fn inx(&mut self, _mc: &mut MemController) {
+    fn inx(&mut self, _state: &mut NesState) {
         self.reg.X = self.reg.X.wrapping_add(1);
         self.update_processor_status_nz_flags(self.reg.X);
     }
 
-    fn iny(&mut self, _mc: &mut MemController) {
+    fn iny(&mut self, _state: &mut NesState) {
         self.reg.Y = self.reg.Y.wrapping_add(1);
         self.update_processor_status_nz_flags(self.reg.Y);
     }
 
-    fn isb(&mut self, mc: &mut MemController) {
-        self.inc(mc);
+    fn isb(&mut self, state: &mut NesState) {
+        self.inc(state);
         //self.operand_value = self.mem.read(self.operand_address);
-        self.sbc(mc);
+        self.sbc(state);
         // This instruction does not suffer a page penalty, but sbc()
         // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
-    fn jmp(&mut self, _mc: &mut MemController) {
+    fn jmp(&mut self, _state: &mut NesState) {
         self.reg.PC = self.operand_address;
     }
 
-    fn jsr(&mut self, mc: &mut MemController) {
+    fn jsr(&mut self, state: &mut NesState) {
         let return_addr = self.reg.PC - 1;
-        self.stack_push_word(mc, return_addr);
+        self.stack_push_word(state, return_addr);
         self.reg.PC = self.operand_address;
     }
 
-    fn lax(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn lax(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.A = self.operand_value;
         self.reg.X = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
-    fn lda(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn lda(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.A = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
-    fn ldx(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn ldx(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.X = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.X);
         self.apply_page_penalty();
     }
 
-    fn ldy(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn ldy(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.Y = self.operand_value;
         self.update_processor_status_nz_flags(self.reg.Y);
         self.apply_page_penalty();
     }
 
-    fn lsr(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn lsr(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         // Move bit 0 of operand value into carry flag
         if utils::bit_is_set(0, self.operand_value) {
@@ -810,55 +809,55 @@ impl Cpu {
         // Put result in A or memory depending on addressing mode
         match instruction.addr_mode {
             AddrMode::ACC => self.reg.A = result,
-            _ => self.do_mem_write(mc, self.operand_address, result),
+            _ => self.do_mem_write(state, self.operand_address, result),
         };
     }
 
-    fn nop(&mut self, _mc: &mut MemController) {
+    fn nop(&mut self, _state: &mut NesState) {
         // Does nothing
 
         // Here for illegal nop opcode cycle time accuracy
         self.apply_page_penalty();
     }
 
-    fn ora(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn ora(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
         self.reg.A |= self.operand_value;
         self.update_processor_status_nz_flags(self.reg.A);
         self.apply_page_penalty();
     }
 
-    fn pha(&mut self, mc: &mut MemController) {
-        self.stack_push(mc, self.reg.A);
+    fn pha(&mut self, state: &mut NesState) {
+        self.stack_push(state, self.reg.A);
     }
 
-    fn php(&mut self, mc: &mut MemController) {
+    fn php(&mut self, state: &mut NesState) {
         let mut p_val = self.reg.P;
         utils::set_bit(4, &mut p_val);
         utils::set_bit(5, &mut p_val);
-        self.stack_push(mc, p_val);
+        self.stack_push(state, p_val);
     }
 
-    fn pla(&mut self, mc: &mut MemController) {
-        self.reg.A = self.stack_pull(mc);
+    fn pla(&mut self, state: &mut NesState) {
+        self.reg.A = self.stack_pull(state);
         self.update_processor_status_nz_flags(self.reg.A);
     }
 
-    fn plp(&mut self, mc: &mut MemController) {
-        self.set_p_from_stack(mc);
+    fn plp(&mut self, state: &mut NesState) {
+        self.set_p_from_stack(state);
     }
 
-    fn rla(&mut self, mc: &mut MemController) {
-        self.rol(mc);
+    fn rla(&mut self, state: &mut NesState) {
+        self.rol(state);
         //self.operand_value = self.mem.read(self.operand_address);
-        self.and(mc);
+        self.and(state);
         // This instruction does not suffer a page penalty, but and()
         // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
-    fn rol(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn rol(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         // Get value for bit 0 from current carry flag value
         let bit0 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 } else { 0u8 };
@@ -883,12 +882,12 @@ impl Cpu {
         // Put result in A or memory depending on addressing mode
         match instruction.addr_mode {
             AddrMode::ACC => self.reg.A = result,
-            _ => self.do_mem_write(mc, self.operand_address, result),
+            _ => self.do_mem_write(state, self.operand_address, result),
         };
     }
 
-    fn ror(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn ror(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         // Get value for bit 7 from current carry flag value
         let bit7 = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 1u8 << 7 } else { 0u8 };
@@ -913,36 +912,36 @@ impl Cpu {
         // Put result in A or memory depending on addressing mode
         match instruction.addr_mode {
             AddrMode::ACC => self.reg.A = result,
-            _ => self.do_mem_write(mc, self.operand_address, result),
+            _ => self.do_mem_write(state, self.operand_address, result),
         };
     }
 
-    fn rra(&mut self, mc: &mut MemController) {
-        self.ror(mc);
+    fn rra(&mut self, state: &mut NesState) {
+        self.ror(state);
         //self.operand_value = self.mem.read(self.operand_address);
-        self.adc(mc);
+        self.adc(state);
         // This instruction does not suffer a page penalty, but adc()
         // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
-    fn rti(&mut self, mc: &mut MemController) {
-        self.set_p_from_stack(mc);
-        self.reg.PC = self.stack_pull_word(mc);
+    fn rti(&mut self, state: &mut NesState) {
+        self.set_p_from_stack(state);
+        self.reg.PC = self.stack_pull_word(state);
     }
 
-    fn rts(&mut self, mc: &mut MemController) {
-        self.reg.PC = self.stack_pull_word(mc);
+    fn rts(&mut self, state: &mut NesState) {
+        self.reg.PC = self.stack_pull_word(state);
         self.reg.PC += 1;
     }
 
-    fn sax(&mut self, mc: &mut MemController) {
+    fn sax(&mut self, state: &mut NesState) {
         let result = self.reg.A & self.reg.X;
-        self.do_mem_write(mc, self.operand_address, result);
+        self.do_mem_write(state, self.operand_address, result);
     }
 
-    fn sbc(&mut self, mc: &mut MemController) {
-        self.fetch_operand(mc);
+    fn sbc(&mut self, state: &mut NesState) {
+        self.fetch_operand(state);
 
         let carry = if utils::bit_is_set(PS_C_BIT, self.reg.P) { 0u8 } else { 1u8 };
 
@@ -970,78 +969,78 @@ impl Cpu {
         self.apply_page_penalty();
     }
 
-    fn sec(&mut self, _mc: &mut MemController) {
+    fn sec(&mut self, _state: &mut NesState) {
         utils::set_bit(PS_C_BIT, &mut self.reg.P);
     }
 
-    fn sed(&mut self, _mc: &mut MemController) {
+    fn sed(&mut self, _state: &mut NesState) {
         utils::set_bit(PS_D_BIT, &mut self.reg.P);
     }
 
-    fn sei(&mut self, _mc: &mut MemController) {
+    fn sei(&mut self, _state: &mut NesState) {
         utils::set_bit(PS_I_BIT, &mut self.reg.P);
     }
 
-    fn slo(&mut self, mc: &mut MemController) {
-        self.asl(mc);
+    fn slo(&mut self, state: &mut NesState) {
+        self.asl(state);
         //self.operand_value = self.mem.read(self.operand_address);
-        self.ora(mc);
+        self.ora(state);
         // This instruction does not suffer a page penalty, but ora()
         // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
-    fn sre(&mut self, mc: &mut MemController) {
-        self.lsr(mc);
+    fn sre(&mut self, state: &mut NesState) {
+        self.lsr(state);
         //self.operand_value = self.mem.read(self.operand_address);
-        self.eor(mc);
+        self.eor(state);
         // This instruction does not suffer a page penalty, but eor()
         // adds it in, so subtract it back off here.
         self.extra_cycles -= self.page_penalty;
     }
 
-    fn sta(&mut self, mc: &mut MemController) {
-        self.do_mem_write(mc, self.operand_address, self.reg.A);
+    fn sta(&mut self, state: &mut NesState) {
+        self.do_mem_write(state, self.operand_address, self.reg.A);
     }
 
-    fn stx(&mut self, mc: &mut MemController) {
-        self.do_mem_write(mc, self.operand_address, self.reg.X);
+    fn stx(&mut self, state: &mut NesState) {
+        self.do_mem_write(state, self.operand_address, self.reg.X);
     }
 
-    fn sty(&mut self, mc: &mut MemController) {
-        self.do_mem_write(mc, self.operand_address, self.reg.Y);
+    fn sty(&mut self, state: &mut NesState) {
+        self.do_mem_write(state, self.operand_address, self.reg.Y);
     }
 
-    fn tax(&mut self, _mc: &mut MemController) {
+    fn tax(&mut self, _state: &mut NesState) {
         self.reg.X = self.reg.A;
         self.update_processor_status_nz_flags(self.reg.X);
     }
 
-    fn tay(&mut self, _mc: &mut MemController) {
+    fn tay(&mut self, _state: &mut NesState) {
         self.reg.Y = self.reg.A;
         self.update_processor_status_nz_flags(self.reg.Y);
     }
 
-    fn tsx(&mut self, _mc: &mut MemController) {
+    fn tsx(&mut self, _state: &mut NesState) {
         self.reg.X = self.reg.SP;
         self.update_processor_status_nz_flags(self.reg.X);
     }
 
-    fn txa(&mut self, _mc: &mut MemController) {
+    fn txa(&mut self, _state: &mut NesState) {
         self.reg.A = self.reg.X;
         self.update_processor_status_nz_flags(self.reg.A);
     }
 
-    fn txs(&mut self, _mc: &mut MemController) {
+    fn txs(&mut self, _state: &mut NesState) {
         self.reg.SP = self.reg.X;
     }
 
-    fn tya(&mut self, _mc: &mut MemController) {
+    fn tya(&mut self, _state: &mut NesState) {
         self.reg.A = self.reg.Y;
         self.update_processor_status_nz_flags(self.reg.A);
     }
 
-    fn oops(&mut self, _mc: &mut MemController) {
+    fn oops(&mut self, _state: &mut NesState) {
         let idx = self.opcode as usize;
         let instr = &Cpu::OP_CODES[idx];
         error!("unsupported instruction: {:#04x}  ({})", instr.opcode, instr.name);
@@ -1349,34 +1348,34 @@ mod tests {
         }
     }
 
-    fn get_mem_controller() -> MemController {
-        MemController::new(
+    fn get_mem_controller() -> NesState {
+        NesState::new(
             Rc::new(RefCell::new(Ppu::new())),
         )
     }
 
-    fn get_mc_with_cpu_mem_ramp() -> MemController {
-        let mut mc = get_mem_controller();
+    fn get_state_with_cpu_mem_ramp() -> NesState {
+        let mut state = get_mem_controller();
 
         for page in 0..256 {
             for byte in 0..256 {
-                mc.cpu_mem_write(byte as u64, page * 256 + byte, byte as u8);
+                state.cpu_mem_write(byte as u64, page * 256 + byte, byte as u8);
             }
         }
 
-        mc
+        state
     }
 
     #[test]
     fn test_cpu_read_byte() {
-        let mut mc = get_mc_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mc);
+        let mut state = get_state_with_cpu_mem_ramp();
+        let mut cpu = Cpu::new(&state);
 
         //let pc = 0x400; // address 1024 in decimal, page 4
         cpu.reg.PC = 0x400; // address 1024 in decimal, page 4 
 
         for i in 0..256 {
-            let val = cpu.read_byte(&mut mc);
+            let val = cpu.read_byte(&mut state);
             println!("read value {:#04x} from address {:#04x}", val, cpu.reg.PC - 1);
             assert!(val == i as u8);
         }
@@ -1386,53 +1385,53 @@ mod tests {
     fn test_cpu_read_word() {
         let pc = 0x2f0; // page 2
 
-        let mut mc = get_mc_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mc);
+        let mut state = get_state_with_cpu_mem_ramp();
+        let mut cpu = Cpu::new(&state);
 
         cpu.reg.PC = pc;
 
-        let val = cpu.read_word(&mut mc);
+        let val = cpu.read_word(&mut state);
 
         assert!(val == 61936);
     }
 
     #[test]
     fn test_fetch_operand_imm() {
-        let mut mc = get_mc_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mc);
+        let mut state = get_state_with_cpu_mem_ramp();
+        let mut cpu = Cpu::new(&state);
         cpu.reg.PC = 0x501;
 
-        cpu.set_operand_address(&mut mc, &AddrMode::IMM);
+        cpu.set_operand_address(&mut state, &AddrMode::IMM);
         assert!(cpu.operand_value == 1);
     }
 
     #[test]
     fn test_fetch_operand_abs() {
-        let mut mc = get_mc_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mc);
+        let mut state = get_state_with_cpu_mem_ramp();
+        let mut cpu = Cpu::new(&state);
         cpu.reg.PC = 0xff02;
         cpu.opcode = OPCODE_ORA_ABS;
 
-        println!("0xff02 = {}", mc.cpu_mem_read(0, 0xff02));
+        println!("0xff02 = {}", state.cpu_mem_read(0, 0xff02));
 
         // Should read 0x0302 as the address word from PC
         // The value at 0x0302 should be 2 in the mem ramp.
-        cpu.set_operand_address(&mut mc, &AddrMode::ABS);
-        cpu.fetch_operand(&mut mc);
+        cpu.set_operand_address(&mut state, &AddrMode::ABS);
+        cpu.fetch_operand(&mut state);
 
         println!("cpu.operane_address = {:02X}", cpu.operand_address);
-        println!("0x0302 = {}", mc.cpu_mem_read(0, 0x0302));
+        println!("0x0302 = {}", state.cpu_mem_read(0, 0x0302));
         println!("cpu.operane_value = {}", cpu.operand_value);
         assert!(cpu.operand_value == 2);
     }
 
     #[test]
     fn test_and_with_zero_result() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xF0;
-        cpu.and(&mut mc);
+        cpu.and(&mut state);
 
         assert!(cpu.reg.A == 0);
         assert!(utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
@@ -1441,11 +1440,11 @@ mod tests {
 
     #[test]
     fn test_and_with_negative_result() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x81;
         cpu.operand_value = 0xF1;
-        cpu.and(&mut mc);
+        cpu.and(&mut state);
 
         assert!(cpu.reg.A == 0x81);
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
@@ -1454,11 +1453,11 @@ mod tests {
 
     #[test]
     fn test_eor() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xFF;
-        cpu.eor(&mut mc);
+        cpu.eor(&mut state);
 
         assert!(cpu.reg.A == 0xF0);
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
@@ -1467,11 +1466,11 @@ mod tests {
 
     #[test]
     fn test_ora() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x8F;
         cpu.operand_value = 0x71;
-        cpu.ora(&mut mc);
+        cpu.ora(&mut state);
 
         assert!(cpu.reg.A == 0xFF);
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
@@ -1480,36 +1479,36 @@ mod tests {
 
     #[test]
     fn test_adc() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 1;
         cpu.operand_value = 1;
-        cpu.adc(&mut mc);
+        cpu.adc(&mut state);
         assert!(cpu.reg.A == 2);
         assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_V_BIT, cpu.reg.P));
 
-        cpu.clc(&mut mc);
+        cpu.clc(&mut state);
         cpu.reg.A = 1;
         cpu.operand_value = -1i8 as u8;
-        cpu.adc(&mut mc);
+        cpu.adc(&mut state);
         assert!(cpu.reg.A == 0);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_V_BIT, cpu.reg.P));
 
-        cpu.clc(&mut mc);
+        cpu.clc(&mut state);
         cpu.reg.A = 0x7F;
         cpu.operand_value = 1;
-        cpu.adc(&mut mc);
+        cpu.adc(&mut state);
         assert!(cpu.reg.A == 128);
         assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_V_BIT, cpu.reg.P));
 
-        cpu.clc(&mut mc);
+        cpu.clc(&mut state);
         cpu.reg.A = 0x80;
         cpu.operand_value = 0xFF;
-        cpu.adc(&mut mc);
+        cpu.adc(&mut state);
         assert!(cpu.reg.A == 0x7F);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_V_BIT, cpu.reg.P));
@@ -1518,7 +1517,7 @@ mod tests {
     #[test]
     fn test_asl() {
         // This test actually executes a small program to test ASL.
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
 
         let test_program: Vec<u8> = vec![
@@ -1534,11 +1533,11 @@ mod tests {
 
         let start_addr = 0xC000;
 
-        mc.cpu_mem_load(start_addr, &test_program);
+        state.cpu_mem_load(start_addr, &test_program);
         cpu.reg.PC = start_addr;
-        cpu.cycle_to(&mut mc, needed_cycles);
+        cpu.cycle_to(&mut state, needed_cycles);
 
-        assert!(mc.cpu_mem_read(0, 0x00FE) == 0x02);
+        assert!(state.cpu_mem_read(0, 0x00FE) == 0x02);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
@@ -1546,26 +1545,26 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 5;
         cpu.operand_value = 0;
-        cpu.cmp(&mut mc);
+        cpu.cmp(&mut state);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
 
         cpu.reg.A = 101;
         cpu.operand_value = 101;
-        cpu.cmp(&mut mc);
+        cpu.cmp(&mut state);
         assert!(utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_N_BIT, cpu.reg.P));
 
         cpu.reg.A = 101;
         cpu.operand_value = 201;
-        cpu.cmp(&mut mc);
+        cpu.cmp(&mut state);
         assert!(!utils::bit_is_set(PS_C_BIT, cpu.reg.P));
         assert!(!utils::bit_is_set(PS_Z_BIT, cpu.reg.P));
         assert!(utils::bit_is_set(PS_N_BIT, cpu.reg.P));
@@ -1575,7 +1574,7 @@ mod tests {
     fn test_jsr_rts() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let mut mc = get_mem_controller();
+        let mut state = get_mem_controller();
         let mut cpu = Cpu::default();
 
         let test_program: Vec<u8> = vec![
@@ -1597,11 +1596,11 @@ mod tests {
             Cpu::OP_CODES[OPCODE_RTS as usize].cycles;
 
         let start_addr = 0xC000;
-        mc.cpu_mem_load(start_addr, &test_program);
-        mc.cpu_mem_load(start_addr + 0x32, &subroutine);
+        state.cpu_mem_load(start_addr, &test_program);
+        state.cpu_mem_load(start_addr + 0x32, &subroutine);
 
         cpu.reg.PC = start_addr;
-        cpu.cycle_to(&mut mc, needed_cycles);
+        cpu.cycle_to(&mut state, needed_cycles);
 
         assert!(cpu.reg.A == 0x47);
     }

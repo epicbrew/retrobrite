@@ -17,7 +17,9 @@ mod ppu;
 use ppu::Ppu;
 
 mod mem;
-use mem::MemController;
+
+mod state;
+use state::NesState;
 
 mod ines;
 use ines::InesRom;
@@ -70,13 +72,11 @@ fn main() {
     let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
     let ppu = Rc::new(RefCell::new(Ppu::new()));
-    let mut mc = MemController::new(Rc::clone(&ppu));
+    let mut mc = NesState::new(Rc::clone(&ppu));
 
     mapper.load_rom(&mut mc, &ines_file);
-    //load_prg_rom(&mut mc, &ines_file);
 
     mapper.print_info();
-    info!("reset vector: {:04X}", mc.raw_cpu_mem_read_word(0xFFFC));
 
     let mut cpu = Cpu::new(&mc);
 

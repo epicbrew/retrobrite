@@ -1,5 +1,5 @@
 use crate::utils;
-use crate::mem::memory::Memory;
+use crate::mem::Memory;
 
 /// Size of Object Attribute Memory.
 const OAM_SIZE: usize = 256;
