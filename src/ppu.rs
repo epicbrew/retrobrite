@@ -4,6 +4,15 @@ use crate::mem::Memory;
 /// Size of Object Attribute Memory.
 const OAM_SIZE: usize = 256;
 
+pub enum PpuCycleResult {
+    Idle,
+    Pixel {scanline: u16, x: u16, color: u8},
+    HBlank {scanline: u16},
+    PostRenderLine,
+    VBlankLine {scanline: u16},
+    PreRenderLine,
+}
+
 /// Latch for ppuaddr, ppuscroll, etc.
 pub enum Latch {
     /// Latch state clear.
@@ -83,6 +92,47 @@ struct PpuFlags {
     _hblank: bool,
     _rendering: bool,
 }
+#[derive(Default)]
+enum PpuFetchState {
+    #[default] Idle,
+    NametableAddr,
+    NametableRead(u16),
+    AttrtableAddr,
+    AttrtableRead(u16),
+    BackgroundLSBAddr,
+    BackgroundLSBRead(u16),
+    BackgroundMSBAddr,
+    BackgroundMSBRead(u16)
+}
+
+//impl Default for PpuFetchState {
+//    fn default() -> Self {
+//        PpuFetchState::Idle
+//    }
+//}
+
+#[derive(Default)]
+struct ShiftRegister16Bit {
+    /// Lower 8 bits of register.
+    lo: u8,
+    /// Upper 8 bits of register.
+    hi: u8,
+}
+
+/// Shift register used for holding rendering data/state.
+impl ShiftRegister16Bit {
+    fn push_byte(&mut self, byte: u8) {
+        self.lo = self.hi;  // Shift upper byte to lower byte
+        self.hi = byte;     // Set upper byte to new byte
+    }
+}
+
+#[derive(Default)]
+struct PpuRenderState {
+    fetch_state: PpuFetchState,
+    pattern_tile_msb_register: ShiftRegister16Bit,
+    pattern_tile_lsb_register: ShiftRegister16Bit,
+}
 
 ///
 /// Picture processing unit.
@@ -91,8 +141,8 @@ pub struct Ppu {
     /// PPU flags for bookkeeping.
     _flags: PpuFlags,
 
-    /// PPU cycle counter.
-    cycle_count: u64,
+    /// Overall PPU cycle counter.
+    total_cycle_count: u64,
 
     /// PPU Registers.
     reg: PpuRegisters,
@@ -116,13 +166,21 @@ pub struct Ppu {
     ppuscroll_latch: Latch,
     ppuscroll_x_offset: u8,
     ppuscroll_y_offset: u8,
+
+    /// PPU Rendering state, current scanline.
+    scanline: u16,
+
+    /// PPU Rendering state, scanline cycle.
+    cycle: u16,
+
+    render_state: PpuRenderState,
 }
 
 impl Ppu {
     pub fn new() -> Self {
         Self {
             _flags: PpuFlags::default(),
-            cycle_count: 0,
+            total_cycle_count: 0,
             reg: PpuRegisters::default(),
             //vram_ptr: 0,
             mem: Memory::new_ppu(),
@@ -132,17 +190,77 @@ impl Ppu {
             ppuscroll_latch: Latch::Clear,
             ppuscroll_x_offset: 0,
             ppuscroll_y_offset: 0,
+            scanline: 261, // Start on prerender scanline
+            cycle: 0,
+            render_state: PpuRenderState::default(),
         }
     }
 
-    pub fn cycle(&mut self) {
-        self.cycle_count += 1;
-        return;
+    fn set_next_cycle(&mut self) {
+        self.cycle += 1;
+
+        // 262 scanlines x 341 pixels
+
+        // Reset at cycle index 341
+        if self.cycle > 340 {
+            self.cycle = 0;
+            self.scanline += 1;
+
+            // Reset at scanline index 262
+            if self.scanline > 261 {
+                self.scanline = 0;
+            }
+        }
+    }
+
+    pub fn cycle(&mut self) -> PpuCycleResult {
+        self.total_cycle_count += 1;
+        
+        let result: PpuCycleResult = match self.scanline {
+            0..=239 => {  // Visible scanlines
+                self.do_fetches();
+                self.render_pixel()
+            },
+            261 => {
+
+                PpuCycleResult::PreRenderLine
+            },
+            _ => PpuCycleResult::Idle,
+        };
+
+        self.set_next_cycle();
+
+        result
+    }
+
+    fn do_fetches(&mut self) {
+
+        if self.cycle == 0 {
+            self.render_state.fetch_state = PpuFetchState::NametableAddr;
+            return;
+        }
+        // Needs implementation
+        match self.render_state.fetch_state {
+            PpuFetchState::Idle => return,
+            PpuFetchState::NametableAddr => todo!(),
+            PpuFetchState::NametableRead(addr) => todo!(),
+            PpuFetchState::AttrtableAddr => todo!(),
+            PpuFetchState::AttrtableRead(addr) => todo!(),
+            PpuFetchState::BackgroundLSBAddr => todo!(),
+            PpuFetchState::BackgroundLSBRead(addr) => todo!(),
+            PpuFetchState::BackgroundMSBAddr => todo!(),
+            PpuFetchState::BackgroundMSBRead(addr) => todo!(),
+        }
+    }
+
+    fn render_pixel(&mut self) -> PpuCycleResult {
+        // Needs implementation
+        PpuCycleResult::Pixel { scanline: self.scanline, x: self.cycle, color: 0 }
     }
 
     /// Write to ppuctrl register.
     pub fn write_2000_ppuctrl(&mut self, value: u8) {
-        if self.cycle_count < 30000 {
+        if self.total_cycle_count < 30000 {
             return;
         }
 
