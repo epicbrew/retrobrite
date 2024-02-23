@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn it_works() {
-        let path_buf = PathBuf::from(r"/Users/mshildt/Roms/nes/Donkey Kong (World) (Rev A).nes");
+        let path_buf = PathBuf::from(r"./nestest/nestest.nes");
         let nesrom = InesRom::from_path(&path_buf.as_path());
         println!("{:#?}", nesrom.header);
         println!("prg_rom_size: {}", nesrom.prg_rom.len());

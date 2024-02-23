@@ -1,4 +1,4 @@
-use crate::utils;
+use crate::utils::{self, set_bits_from_mask_u16};
 use crate::mem::Memory;
 
 /// Size of Object Attribute Memory.
@@ -13,13 +13,38 @@ pub enum PpuCycleResult {
     PreRenderLine,
 }
 
-/// Latch for ppuaddr, ppuscroll, etc.
-pub enum Latch {
-    /// Latch state clear.
-    Clear,
+// Latch for ppuaddr, ppuscroll, etc.
+//pub enum Latch {
+//    /// Latch state clear.
+//    Clear,
+//
+//    /// Latch state set with value.
+//    Set(u8),
+//}
 
-    /// Latch state set with value.
-    Set(u8),
+/// Toggle to represent internal PPU register 'w'.
+#[derive(Default)]
+enum Toggle {
+    /// w = 0
+    #[default] FirstWrite,
+    /// w = 1
+    SecondWrite,
+}
+
+impl Toggle {
+    fn toggle(&mut self) {
+        match *self {
+            Toggle::FirstWrite => *self = Toggle::SecondWrite,
+            Toggle::SecondWrite => *self = Toggle::FirstWrite,
+        }
+    }
+    
+    fn _print(&self) {
+        match *self {
+            Toggle::FirstWrite => println!("first write"),
+            Toggle::SecondWrite => println!("second write"),
+        }
+    }
 }
 
 ///
@@ -56,34 +81,25 @@ struct PpuRegisters {
     oam_addr: u8,
 
     ///
-    /// OAM Data (Cpu: $2004, Bits: dddd dddd).
-    /// OAM data read/write.
+    /// PPU internal register for current VRAM address (15 bits)
     /// 
-    //oam_data: u8,
-
-    //
-    // PPU Scroll (Cpu: $2005, Bits: xxxx xxxx).
-    // Fine scroll position (two writes: X scroll, Y scroll).
-    // 
-    //ppu_scroll: u8,
+    v: u16,
 
     ///
-    /// PPU Address (Cpu: $2006, Bits: aaaa aaaa).
-    /// PPU read/write address (two writes: most significant byte, least significant byte).
+    /// PPU internal register for temporary VRAM address (15 bits); can also be
+    /// thought of as the address of the top left onscreen tile.
     /// 
-    ppu_addr: u16,
+    t: u16,
 
-    //
-    // PPU Data (Cpu: $2007, Bits: dddd dddd).
-    // PPU data read/write.
-    // 
-    //ppu_data: u8,
+    ///
+    /// Fine X scroll (3 bits)
+    /// 
+    x: u8,
 
-    //
-    // OAM DMA (Cpu: $4014, Bits: aaaa aaaa).
-    // OAM DMA high address.
-    // 
-    //oam_dma: u8,
+    ///
+    /// Write toggle flag (1 bit)
+    /// 
+    w: Toggle,
 }
 
 #[derive(Default)]
@@ -156,16 +172,16 @@ pub struct Ppu {
     /// Object Attribute Memory
     oam: Memory,
 
-    ppuaddr_latch: Latch,
+    //ppuaddr_latch: Latch,
 
     /// Reads to 2007 are done via an internal ppu buffer.
     /// A read returns the buffer contents and then the buffer
     /// is loaded with the value at PPUADDR
     ppudata_read_buffer: u8,
 
-    ppuscroll_latch: Latch,
-    ppuscroll_x_offset: u8,
-    ppuscroll_y_offset: u8,
+    //ppuscroll_latch: Latch,
+    //ppuscroll_x_offset: u8,
+    //ppuscroll_y_offset: u8,
 
     /// PPU Rendering state, current scanline.
     scanline: u16,
@@ -185,11 +201,11 @@ impl Ppu {
             //vram_ptr: 0,
             mem: Memory::new_ppu(),
             oam: Memory::new(OAM_SIZE),
-            ppuaddr_latch: Latch::Clear,
+            //ppuaddr_latch: Latch::Clear,
             ppudata_read_buffer: 0,
-            ppuscroll_latch: Latch::Clear,
-            ppuscroll_x_offset: 0,
-            ppuscroll_y_offset: 0,
+            //ppuscroll_latch: Latch::Clear,
+            //ppuscroll_x_offset: 0,
+            //ppuscroll_y_offset: 0,
             scanline: 261, // Start on prerender scanline
             cycle: 0,
             render_state: PpuRenderState::default(),
@@ -265,6 +281,10 @@ impl Ppu {
         }
 
         self.reg.ppu_ctrl = value;
+
+        // Write nametable selection bits to t
+        let nt_bits = (value as u16) << 10; 
+        set_bits_from_mask_u16(nt_bits, 0xc00, &mut self.reg.t);
     }
 
     /// Write to ppumask register.
@@ -282,9 +302,10 @@ impl Ppu {
         // Reading the status register clears bit 7
         utils::clear_bit(7, &mut self.reg.ppu_status);
 
-        // Reset address latches used by ppuaddr and ppuscroll
-        self.ppuaddr_latch = Latch::Clear;
-        self.ppuscroll_latch = Latch::Clear;
+        // Reset address latch / write flag used by ppuaddr and ppuscroll
+        self.reg.w = Toggle::FirstWrite;
+        //self.ppuaddr_latch = Latch::Clear;
+        //self.ppuscroll_latch = Latch::Clear;
 
         return_status
     }
@@ -304,43 +325,86 @@ impl Ppu {
     }
 
     pub fn write_2005_ppuscroll(&mut self, value: u8) {
-        match self.ppuscroll_latch {
-            Latch::Clear => self.ppuscroll_latch = Latch::Set(value),
-            Latch::Set(x_offset) => {
-                self.ppuscroll_x_offset = x_offset;
-                self.ppuscroll_y_offset = value;
-                self.ppuscroll_latch = Latch::Clear;
+        match self.reg.w {
+            Toggle::FirstWrite => {
+                // t: ....... ...ABCDE <- d: ABCDE...  coarse X scroll value
+                let value_u16 = value as u16;
+                set_bits_from_mask_u16(value_u16 >> 3, 0x1F, &mut self.reg.t);
+
+                // x:              FGH <- d: .....FGH  fine X scroll value
+                self.reg.x = value & 0x7;
+
+                self.reg.w.toggle();
+            }
+            Toggle::SecondWrite => {
+                // t: FGH..AB CDE..... <- d: ABCDEFGH
+                let fgh = (value as u16) << 12;  // fine Y scroll
+                let abcde = (value as u16) << 2; // coarse Y scroll
+
+                set_bits_from_mask_u16(fgh, 0x7000, &mut self.reg.t);
+                set_bits_from_mask_u16(abcde, 0x3E0, &mut self.reg.t);
+
+                self.reg.w.toggle();
             }
         }
     }
 
     pub fn write_2006_ppuaddr(&mut self, value: u8) {
-        match self.ppuaddr_latch {
-            Latch::Clear => self.ppuaddr_latch = Latch::Set(value),
-            Latch::Set(msb) => {
-                let addr = u16::from_le_bytes([value, msb]);
-                self.reg.ppu_addr = addr & 0x3FFF; // mirror down beyond 0x3fff
-                self.ppuaddr_latch = Latch::Clear;
+        match self.reg.w {
+
+            Toggle::FirstWrite => {
+                // t: .CDEFGH ........ <- d: ..CDEFGH
+                //        <unused>     <- d: AB......
+                // t: Z...... ........ <- 0 (bit Z is cleared)
+                let mut value_u16 = (value & 0x3F) as u16;
+                value_u16 = value_u16 << 8;
+
+                // Using 0xFF00 mask here to clear the upper two bits of t since we cleared
+                // them when initializing value_u16.
+                set_bits_from_mask_u16(value_u16, 0xFF00, &mut self.reg.t);
+
+                self.reg.w.toggle();
+            }
+            Toggle::SecondWrite => {
+                // t: ....... ABCDEFGH <- d: ABCDEFGH
+                // v: <...all bits...> <- t: <...all bits...>
+                // w:                  <- 0
+                set_bits_from_mask_u16(value as u16, 0xFF, &mut self.reg.t);
+
+                self.reg.t = self.reg.t & 0x3FFF; // mirror down beyond 0x3FFF
+                self.reg.v = self.reg.t;
+
+                self.reg.w.toggle();
             }
         }
+        
+        // Old implementation. Cleaner, but not as accurate.
+        //match self.ppuaddr_latch {
+        //    Latch::Clear => self.ppuaddr_latch = Latch::Set(value),
+        //    Latch::Set(msb) => {
+        //        let addr = u16::from_le_bytes([value, msb]);
+        //        self.reg.ppu_addr = addr & 0x3FFF; // mirror down beyond 0x3fff
+        //        self.ppuaddr_latch = Latch::Clear;
+        //    }
+        //}
     }
 
     pub fn write_2007_ppudata(&mut self, value: u8) {
-        self.mem.write(self.reg.ppu_addr, value);
-        self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
+        self.mem.write(self.reg.v, value);
+        self.reg.v += self.ppu_ctrl_get_vram_increment();
     }
 
     pub fn read_2007_ppudata(&mut self) -> u8 {
-        if self.reg.ppu_addr > 0x3EFF {
-            let value = self.mem.read(self.reg.ppu_addr);
-            self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
+        if self.reg.v > 0x3EFF {
+            let value = self.mem.read(self.reg.v);
+            self.reg.v += self.ppu_ctrl_get_vram_increment();
 
             value
         } else {
             let value = self.ppudata_read_buffer;
 
-            self.reg.ppu_addr += self.ppu_ctrl_get_vram_increment();
-            self.ppudata_read_buffer = self.mem.read(self.reg.ppu_addr);
+            self.reg.v += self.ppu_ctrl_get_vram_increment();
+            self.ppudata_read_buffer = self.mem.read(self.reg.v);
 
             value
         }

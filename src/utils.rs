@@ -18,6 +18,14 @@ pub fn set_bit_from(bit: u8, from: u8, output_value: &mut u8) {
     };
 }
 
+pub fn set_bits_from_mask(bits: u8, mask: u8, dest: &mut u8) {
+    *dest = (*dest & !mask) | (bits & mask)
+}
+
+pub fn set_bits_from_mask_u16(bits: u16, mask: u16, dest: &mut u16) {
+    *dest = (*dest & !mask) | (bits & mask)
+}
+
 pub fn same_page(addr1: u16, addr2: u16) -> bool {
     let addr1_page = addr1 / 256u16;
     let addr2_page = addr2 / 256u16;
@@ -67,6 +75,17 @@ mod tests {
         }
 
         assert!(output_val == input);
+    }
+
+    #[test]
+    fn test_set_bits_from_mask_u16() {
+        let input: u16    = 0x01AB;
+        let mut dest: u16 = 0xF0DD;
+        let expected: u16 = 0xF1DD;
+
+        set_bits_from_mask_u16(input, 0x0300, &mut dest);
+
+        assert!(dest == expected);
     }
 
     #[test]
