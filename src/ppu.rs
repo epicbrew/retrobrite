@@ -47,6 +47,90 @@ impl Toggle {
     }
 }
 
+#[derive(Default)]
+enum SpriteSize {
+    #[default] Sprite8x8,
+    Sprite8x16,
+}
+
+///
+/// PPUCTRL fields. This struct receives the raw value written to PPUCTRL
+/// and parses the value into fields.
+///
+#[derive(Default)]
+struct PpuCtrl {
+    /// Raw value written via $2000
+    value: u8,
+    base_nt_addr: u16,
+    vram_increment: u16,
+    sprite_pt_addr_8x8: u16,
+    bg_pt_addr: u16,
+    sprite_size: SpriteSize,
+    generate_nmi: bool
+}
+
+impl PpuCtrl {
+    fn update(&mut self, value: u8) {
+        self.value = value;
+        self.base_nt_addr = self.get_base_nt_addr();
+        self.vram_increment = self.get_vram_increment();
+        self.sprite_pt_addr_8x8 = self.get_sprite_pt_addr();
+        self.bg_pt_addr = self.get_bg_pt_addr();
+        self.sprite_size = self.get_sprite_size();
+    }
+
+    fn get_base_nt_addr(&self) -> u16 {
+        let index = self.value & 0x3;
+        match index {
+            0 => 0x2000,
+            1 => 0x2400,
+            2 => 0x2800,
+            3 => 0x2C00,
+            _ => panic!("ppu_ctrl_get_base_nametable_addr: invalid index")
+        }
+    }
+
+    fn get_vram_increment(&self) -> u16 {
+        if utils::bit_is_set(2, self.value) {
+            32
+        } else {
+            1
+        }
+    }
+
+    fn get_sprite_pt_addr(&self) -> u16 {
+        if utils::bit_is_set(3, self.value) {
+            0x1000
+        } else {
+            0x0
+        }
+    }
+
+    fn get_bg_pt_addr(&self) -> u16 {
+        if utils::bit_is_set(4, self.value) {
+            0x1000
+        } else {
+            0x0
+        }
+    }
+
+    fn get_sprite_size(&self) -> SpriteSize {
+        if utils::bit_is_set(5, self.value) {
+            SpriteSize::Sprite8x16
+        } else {
+            SpriteSize::Sprite8x8
+        }
+    }
+
+    fn get_nmi_generate(&self) -> bool {
+        if utils::bit_is_set(7, self.value) {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 ///
 /// Ppu registers.
 /// Descriptions per https://www.nesdev.org/wiki/PPU_registers.
@@ -58,7 +142,7 @@ struct PpuRegisters {
     /// NMI enable (V), PPU master/slave (P), sprite height (H), background tile select (B),
     /// sprite tile select (S), increment mode (I), nametable select (NN)
     /// 
-    ppu_ctrl: u8,
+    ppu_ctrl: PpuCtrl,
 
     ///
     /// PPU Mask (Cpu: $2001, Bits: BGRs bMmG).
@@ -103,22 +187,16 @@ struct PpuRegisters {
 }
 
 #[derive(Default)]
-struct PpuFlags {
-    _vblank: bool,
-    _hblank: bool,
-    _rendering: bool,
-}
-#[derive(Default)]
-enum PpuFetchState {
+enum PpuBgFetchState {
     #[default] Idle,
     NametableAddr,
-    NametableRead(u16),
+    NametableRead,
     AttrtableAddr,
-    AttrtableRead(u16),
+    AttrtableRead,
     BackgroundLSBAddr,
-    BackgroundLSBRead(u16),
+    BackgroundLSBRead,
     BackgroundMSBAddr,
-    BackgroundMSBRead(u16)
+    BackgroundMSBRead,
 }
 
 //impl Default for PpuFetchState {
@@ -145,7 +223,30 @@ impl ShiftRegister16Bit {
 
 #[derive(Default)]
 struct PpuRenderState {
-    fetch_state: PpuFetchState,
+    fetch_state: PpuBgFetchState,
+    /// Address of nametable tile to be fetched.
+    tile_addr: u16,
+    /// Value read from tile_addr.
+    tile_value: u8,
+
+    /// Address of attribute table data for tile.
+    attribute_addr: u16,
+
+    /// Attribute data read from attribute_addr.
+    attribute_data: u8,
+
+    /// Address for tile pattern table data lsb.
+    bg_lsb_addr: u16,
+
+    /// Tile's pattern table data lsb.
+    bg_lsb: u8,
+
+    /// Address for tile pattern table data msb.
+    bg_msb_addr: u16,
+
+    /// Tile's pattern table data msb.
+    bg_msb: u8,
+
     pattern_tile_msb_register: ShiftRegister16Bit,
     pattern_tile_lsb_register: ShiftRegister16Bit,
 }
@@ -154,9 +255,6 @@ struct PpuRenderState {
 /// Picture processing unit.
 /// 
 pub struct Ppu {
-    /// PPU flags for bookkeeping.
-    _flags: PpuFlags,
-
     /// Overall PPU cycle counter.
     total_cycle_count: u64,
 
@@ -195,7 +293,6 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Self {
         Self {
-            _flags: PpuFlags::default(),
             total_cycle_count: 0,
             reg: PpuRegisters::default(),
             //vram_ptr: 0,
@@ -234,7 +331,7 @@ impl Ppu {
         
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
-                self.do_fetches();
+                self.do_bg_fetches();
                 self.render_pixel()
             },
             261 => {
@@ -249,23 +346,61 @@ impl Ppu {
         result
     }
 
-    fn do_fetches(&mut self) {
+    fn do_bg_fetches(&mut self) {
 
         if self.cycle == 0 {
-            self.render_state.fetch_state = PpuFetchState::NametableAddr;
+            self.render_state.fetch_state = PpuBgFetchState::NametableAddr;
             return;
         }
-        // Needs implementation
+
+        //
+        // See: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
+        // for details on deducing tile/attribute addresses.
+        //
         match self.render_state.fetch_state {
-            PpuFetchState::Idle => return,
-            PpuFetchState::NametableAddr => todo!(),
-            PpuFetchState::NametableRead(addr) => todo!(),
-            PpuFetchState::AttrtableAddr => todo!(),
-            PpuFetchState::AttrtableRead(addr) => todo!(),
-            PpuFetchState::BackgroundLSBAddr => todo!(),
-            PpuFetchState::BackgroundLSBRead(addr) => todo!(),
-            PpuFetchState::BackgroundMSBAddr => todo!(),
-            PpuFetchState::BackgroundMSBRead(addr) => todo!(),
+            PpuBgFetchState::Idle => return,
+            PpuBgFetchState::NametableAddr => {
+                self.render_state.tile_addr = 0x2000 | (self.reg.v & 0x0FFF)
+            }
+            PpuBgFetchState::NametableRead => {
+                self.render_state.tile_value =
+                    self.mem.read(self.render_state.tile_addr);
+            }
+            PpuBgFetchState::AttrtableAddr => {
+                let v = self.reg.v;
+                self.render_state.attribute_addr = 
+                    0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
+            }
+            PpuBgFetchState::AttrtableRead => {
+                self.render_state.attribute_data = self.mem.read(self.render_state.attribute_addr);
+                self.reg.v += self.reg.ppu_ctrl.vram_increment;
+            }
+            // DCBA98 76543210
+            // ---------------
+            // 0HNNNN NNNNPyyy
+            // |||||| |||||+++- T: Fine Y offset, the row number within a tile
+            // |||||| ||||+---- P: Bit plane (0: less significant bit; 1: more significant bit)
+            // ||++++-++++----- N: Tile number from name table
+            // |+-------------- H: Half of pattern table (0: "left"; 1: "right")
+            // +--------------- 0: Pattern table is at $0000-$1FFF
+            PpuBgFetchState::BackgroundLSBAddr => {
+                let fine_y = self.get_fine_y_scroll();
+
+                self.render_state.bg_lsb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
+                              ((self.render_state.tile_value as u16) << 4) | fine_y as u16;
+            }
+            PpuBgFetchState::BackgroundLSBRead => {
+                self.render_state.bg_lsb = self.mem.read(self.render_state.bg_lsb_addr);
+            }
+            PpuBgFetchState::BackgroundMSBAddr => {
+                let fine_y = 0x8 | self.get_fine_y_scroll(); // Or with 0x8 for msb bit plane
+
+                self.render_state.bg_msb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
+                              ((self.render_state.tile_value as u16) << 4) | fine_y as u16;
+            }
+            PpuBgFetchState::BackgroundMSBRead => {
+                self.render_state.bg_msb = self.mem.read(self.render_state.bg_msb_addr);
+            }
         }
     }
 
@@ -280,7 +415,7 @@ impl Ppu {
             return;
         }
 
-        self.reg.ppu_ctrl = value;
+        self.reg.ppu_ctrl.update(value);
 
         // Write nametable selection bits to t
         let nt_bits = (value as u16) << 10; 
@@ -356,7 +491,7 @@ impl Ppu {
                 // t: .CDEFGH ........ <- d: ..CDEFGH
                 //        <unused>     <- d: AB......
                 // t: Z...... ........ <- 0 (bit Z is cleared)
-                let mut value_u16 = (value & 0x3F) as u16;
+                let mut value_u16 = (value & 0x3F) as u16; // and with 0x3F to clear 2 MSB's
                 value_u16 = value_u16 << 8;
 
                 // Using 0xFF00 mask here to clear the upper two bits of t since we cleared
@@ -391,19 +526,19 @@ impl Ppu {
 
     pub fn write_2007_ppudata(&mut self, value: u8) {
         self.mem.write(self.reg.v, value);
-        self.reg.v += self.ppu_ctrl_get_vram_increment();
+        self.reg.v += self.reg.ppu_ctrl.vram_increment;
     }
 
     pub fn read_2007_ppudata(&mut self) -> u8 {
         if self.reg.v > 0x3EFF {
             let value = self.mem.read(self.reg.v);
-            self.reg.v += self.ppu_ctrl_get_vram_increment();
+            self.reg.v += self.reg.ppu_ctrl.vram_increment;
 
             value
         } else {
             let value = self.ppudata_read_buffer;
 
-            self.reg.v += self.ppu_ctrl_get_vram_increment();
+            self.reg.v += self.reg.ppu_ctrl.vram_increment;
             self.ppudata_read_buffer = self.mem.read(self.reg.v);
 
             value
@@ -418,22 +553,8 @@ impl Ppu {
         self.mem.load(addr, data);
     }
 
-    fn _ppu_ctrl_get_base_nametable_addr(&self) -> u16 {
-        let index = self.reg.ppu_ctrl & 0x0003;
-        match index {
-            0 => 0x2000,
-            1 => 0x2400,
-            2 => 0x2800,
-            3 => 0x2C00,
-            _ => panic!("ppu_ctrl_get_base_nametable_addr: invalid index")
-        }
+    fn get_fine_y_scroll(&self) -> u8 {
+        ((self.reg.t & 0x7000) >> 12) as u8
     }
 
-    fn ppu_ctrl_get_vram_increment(&self) -> u16 {
-        if utils::bit_is_set(2, self.reg.ppu_ctrl) {
-            32
-        } else {
-            1
-        }
-    }
 }

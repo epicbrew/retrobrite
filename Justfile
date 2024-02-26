@@ -13,7 +13,7 @@ nestest:
 run ROM:
     RUST_LOG=info cargo run -- "{{ROM}}"
 
-dubugrun ROM:
+debugrun ROM:
     RUST_LOG=debug cargo run -- "{{ROM}}"
 
 runrelease ROM:
