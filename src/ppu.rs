@@ -222,7 +222,7 @@ impl ShiftRegister16Bit {
 }
 
 #[derive(Default)]
-struct PpuRenderState {
+struct PpuBgRenderState {
     fetch_state: PpuBgFetchState,
     /// Address of nametable tile to be fetched.
     tile_addr: u16,
@@ -285,9 +285,9 @@ pub struct Ppu {
     scanline: u16,
 
     /// PPU Rendering state, scanline cycle.
-    cycle: u16,
+    scanline_cycle: u16,
 
-    render_state: PpuRenderState,
+    bg_render_state: PpuBgRenderState,
 }
 
 impl Ppu {
@@ -304,19 +304,19 @@ impl Ppu {
             //ppuscroll_x_offset: 0,
             //ppuscroll_y_offset: 0,
             scanline: 261, // Start on prerender scanline
-            cycle: 0,
-            render_state: PpuRenderState::default(),
+            scanline_cycle: 0,
+            bg_render_state: PpuBgRenderState::default(),
         }
     }
 
     fn set_next_cycle(&mut self) {
-        self.cycle += 1;
+        self.scanline_cycle += 1;
 
         // 262 scanlines x 341 pixels
 
         // Reset at cycle index 341
-        if self.cycle > 340 {
-            self.cycle = 0;
+        if self.scanline_cycle > 340 {
+            self.scanline_cycle = 0;
             self.scanline += 1;
 
             // Reset at scanline index 262
@@ -331,14 +331,72 @@ impl Ppu {
         
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
-                self.do_bg_fetches();
-                self.render_pixel()
+                // TODO: I think we can update the scroll and PpuBgFetchState here, but
+                //       it might need to be done after the match statement
+
+                match self.scanline_cycle {
+                    0 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::BackgroundLSBAddr;
+                        self.do_bg_fetches();
+                        PpuCycleResult::Idle
+                    },
+                    1..=256 => {
+                        if self.scanline_cycle == 1 {
+                            self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        }
+
+                        self.do_bg_fetches();
+                        self.render_pixel()
+                    },
+                    257..=320 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    },
+                    321 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    322..=340 => {
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    _ => panic!("invalid scanline cycle: {}", self.scanline_cycle)
+                }
+
+                // Updates coarse/fine scroll and shift registers
+                //self.update_bg_render_state();
+                
+
+                //if self.scanline_cycle == 1 {
+                //    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                //}
+
+                //// Unclear if fetches should be done before or after pixel rendering.
+                //let cycle_result = self.render_pixel();
+
+                //self.do_bg_fetches();
+                //self.update_bg_render_state();
+
+                //cycle_result
             },
+            240 => PpuCycleResult::Idle,
+            241 => {
+                if self.scanline_cycle == 1 {
+                    // TODO: Set VBlank flag
+                }
+                PpuCycleResult::VBlankLine { scanline: self.scanline }
+            }
+            242..=260 => PpuCycleResult::VBlankLine { scanline: self.scanline },
             261 => {
+                if self.scanline_cycle == 1 {
+                    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                    self.clear_vblank_sprite0_overflow();
+                }
 
                 PpuCycleResult::PreRenderLine
             },
-            _ => PpuCycleResult::Idle,
+            _ => panic!("Invalid scanline: {}", self.scanline)
         };
 
         self.set_next_cycle();
@@ -348,31 +406,31 @@ impl Ppu {
 
     fn do_bg_fetches(&mut self) {
 
-        if self.cycle == 0 {
-            self.render_state.fetch_state = PpuBgFetchState::NametableAddr;
-            return;
-        }
+        //if self.scanline_cycle == 0 {
+        //    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+        //    return;
+        //}
 
         //
         // See: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
         // for details on deducing tile/attribute addresses.
         //
-        match self.render_state.fetch_state {
-            PpuBgFetchState::Idle => return,
+        match self.bg_render_state.fetch_state {
+            PpuBgFetchState::Idle => (),
             PpuBgFetchState::NametableAddr => {
-                self.render_state.tile_addr = 0x2000 | (self.reg.v & 0x0FFF)
+                self.bg_render_state.tile_addr = 0x2000 | (self.reg.v & 0x0FFF)
             }
             PpuBgFetchState::NametableRead => {
-                self.render_state.tile_value =
-                    self.mem.read(self.render_state.tile_addr);
+                self.bg_render_state.tile_value =
+                    self.mem.read(self.bg_render_state.tile_addr);
             }
             PpuBgFetchState::AttrtableAddr => {
                 let v = self.reg.v;
-                self.render_state.attribute_addr = 
+                self.bg_render_state.attribute_addr = 
                     0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
             }
             PpuBgFetchState::AttrtableRead => {
-                self.render_state.attribute_data = self.mem.read(self.render_state.attribute_addr);
+                self.bg_render_state.attribute_data = self.mem.read(self.bg_render_state.attribute_addr);
                 self.reg.v += self.reg.ppu_ctrl.vram_increment;
             }
             // DCBA98 76543210
@@ -386,27 +444,39 @@ impl Ppu {
             PpuBgFetchState::BackgroundLSBAddr => {
                 let fine_y = self.get_fine_y_scroll();
 
-                self.render_state.bg_lsb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
-                              ((self.render_state.tile_value as u16) << 4) | fine_y as u16;
+                self.bg_render_state.bg_lsb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
+                              ((self.bg_render_state.tile_value as u16) << 4) | fine_y as u16;
             }
             PpuBgFetchState::BackgroundLSBRead => {
-                self.render_state.bg_lsb = self.mem.read(self.render_state.bg_lsb_addr);
+                self.bg_render_state.bg_lsb = self.mem.read(self.bg_render_state.bg_lsb_addr);
             }
             PpuBgFetchState::BackgroundMSBAddr => {
                 let fine_y = 0x8 | self.get_fine_y_scroll(); // Or with 0x8 for msb bit plane
 
-                self.render_state.bg_msb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
-                              ((self.render_state.tile_value as u16) << 4) | fine_y as u16;
+                self.bg_render_state.bg_msb_addr = self.reg.ppu_ctrl.bg_pt_addr | 
+                              ((self.bg_render_state.tile_value as u16) << 4) | fine_y as u16;
             }
             PpuBgFetchState::BackgroundMSBRead => {
-                self.render_state.bg_msb = self.mem.read(self.render_state.bg_msb_addr);
+                self.bg_render_state.bg_msb = self.mem.read(self.bg_render_state.bg_msb_addr);
             }
         }
     }
 
+    fn update_bg_render_state(&mut self) {
+        // For now don't waste time on the garbage NT fetches
+        if self.scanline_cycle == 257 {
+            self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
+        }
+    }
+
     fn render_pixel(&mut self) -> PpuCycleResult {
-        // Needs implementation
-        PpuCycleResult::Pixel { scanline: self.scanline, x: self.cycle, color: 0 }
+        // TODO: Needs implementation
+        PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: 0 }
+    }
+
+
+    fn clear_vblank_sprite0_overflow(&mut self) {
+        // TODO: Implement
     }
 
     /// Write to ppuctrl register.
