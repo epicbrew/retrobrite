@@ -281,6 +281,9 @@ pub struct Ppu {
     //ppuscroll_x_offset: u8,
     //ppuscroll_y_offset: u8,
 
+    /// Frame counter
+    frame: u64,
+
     /// PPU Rendering state, current scanline.
     scanline: u16,
 
@@ -303,6 +306,7 @@ impl Ppu {
             //ppuscroll_latch: Latch::Clear,
             //ppuscroll_x_offset: 0,
             //ppuscroll_y_offset: 0,
+            frame: 0,
             scanline: 261, // Start on prerender scanline
             scanline_cycle: 0,
             bg_render_state: PpuBgRenderState::default(),
@@ -322,6 +326,12 @@ impl Ppu {
             // Reset at scanline index 262
             if self.scanline > 261 {
                 self.scanline = 0;
+                self.frame += 1;
+
+                // On odd numbered frames skip the idle tick on scanline 0, cycle 0
+                if self.frame % 2 == 1 {
+                    self.scanline_cycle = 1;
+                }
             }
         }
     }
@@ -331,15 +341,18 @@ impl Ppu {
         
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
-                // TODO: I think we can update the scroll and PpuBgFetchState here, but
-                //       it might need to be done after the match statement
+                // I think we can update the render state here, but it might
+                // need to be done after the match statement.
+                //self.update_bg_render_state();
+
+                // TODO: Figure out when to cycle bg fetch state and when to update the shift registers
 
                 match self.scanline_cycle {
                     0 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::BackgroundLSBAddr;
                         self.do_bg_fetches();
                         PpuCycleResult::Idle
-                    },
+                    }
                     1..=256 => {
                         if self.scanline_cycle == 1 {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
@@ -347,17 +360,35 @@ impl Ppu {
 
                         self.do_bg_fetches();
                         self.render_pixel()
-                    },
+                    }
                     257..=320 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
                         PpuCycleResult::HBlank { scanline: self.scanline }
-                    },
+                    }
                     321 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
-                    322..=340 => {
+                    322..=336 => {
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    337 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    338 => {
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    339 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        self.do_bg_fetches();
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    340 => {
                         self.do_bg_fetches();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
@@ -405,12 +436,6 @@ impl Ppu {
     }
 
     fn do_bg_fetches(&mut self) {
-
-        //if self.scanline_cycle == 0 {
-        //    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-        //    return;
-        //}
-
         //
         // See: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
         // for details on deducing tile/attribute addresses.
@@ -431,7 +456,8 @@ impl Ppu {
             }
             PpuBgFetchState::AttrtableRead => {
                 self.bg_render_state.attribute_data = self.mem.read(self.bg_render_state.attribute_addr);
-                self.reg.v += self.reg.ppu_ctrl.vram_increment;
+                // this is wrong
+                //self.reg.v += self.reg.ppu_ctrl.vram_increment;
             }
             // DCBA98 76543210
             // ---------------
@@ -463,10 +489,19 @@ impl Ppu {
     }
 
     fn update_bg_render_state(&mut self) {
-        // For now don't waste time on the garbage NT fetches
-        if self.scanline_cycle == 257 {
-            self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
+        if matches!(self.bg_render_state.fetch_state, PpuBgFetchState::BackgroundMSBRead) {
+            // last thing we did was read the BG pattern table MSB,
+            // so update the shift registers
+            self.bg_render_state.pattern_tile_lsb_register.push_byte(
+                self.bg_render_state.bg_lsb
+            );
+            self.bg_render_state.pattern_tile_msb_register.push_byte(
+                self.bg_render_state.bg_msb
+            );
         }
+
+
+
     }
 
     fn render_pixel(&mut self) -> PpuCycleResult {
