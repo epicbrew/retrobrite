@@ -187,6 +187,7 @@ struct PpuRegisters {
 }
 
 #[derive(Default)]
+#[derive(Debug)]
 enum PpuBgFetchState {
     #[default] Idle,
     NametableAddr,
@@ -199,6 +200,21 @@ enum PpuBgFetchState {
     BackgroundMSBRead,
 }
 
+impl PpuBgFetchState {
+    fn next(&mut self) {
+        match *self {
+            PpuBgFetchState::Idle              => *self = PpuBgFetchState::Idle,
+            PpuBgFetchState::NametableAddr     => *self = PpuBgFetchState::NametableRead,
+            PpuBgFetchState::NametableRead     => *self = PpuBgFetchState::AttrtableAddr,
+            PpuBgFetchState::AttrtableAddr     => *self = PpuBgFetchState::AttrtableRead,
+            PpuBgFetchState::AttrtableRead     => *self = PpuBgFetchState::BackgroundLSBAddr,
+            PpuBgFetchState::BackgroundLSBAddr => *self = PpuBgFetchState::BackgroundLSBRead,
+            PpuBgFetchState::BackgroundLSBRead => *self = PpuBgFetchState::BackgroundMSBAddr,
+            PpuBgFetchState::BackgroundMSBAddr => *self = PpuBgFetchState::BackgroundMSBRead,
+            PpuBgFetchState::BackgroundMSBRead => *self = PpuBgFetchState::NametableAddr
+        }
+    }
+}
 //impl Default for PpuFetchState {
 //    fn default() -> Self {
 //        PpuFetchState::Idle
@@ -347,7 +363,7 @@ impl Ppu {
 
                 // TODO: Figure out when to cycle bg fetch state and when to update the shift registers
 
-                match self.scanline_cycle {
+                let cycle_result = match self.scanline_cycle {
                     0 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::BackgroundLSBAddr;
                         self.do_bg_fetches();
@@ -358,25 +374,41 @@ impl Ppu {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
+                        let pixel = self.render_pixel();
+
                         self.do_bg_fetches();
-                        self.render_pixel()
+
+                        if self.scanline_cycle % 8 == 0 {
+                            self.update_bg_shift_registers();
+                            self.update_coarse_x();
+                        }
+                        self.bg_render_state.fetch_state.next();
+
+                        pixel
                     }
                     257..=320 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
-                    321 => {
-                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                    321..=336 => {
+                        if self.scanline_cycle == 321 {
+                            self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        }
+
                         self.do_bg_fetches();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
-                    }
-                    322..=336 => {
-                        self.do_bg_fetches();
+
+                        if self.scanline_cycle % 8 == 0 {
+                            self.update_bg_shift_registers();
+                            self.update_coarse_x();
+                        }
+
+                        self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
                     337 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches();
+                        self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
                     338 => {
@@ -386,6 +418,7 @@ impl Ppu {
                     339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches();
+                        self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
                     340 => {
@@ -393,10 +426,10 @@ impl Ppu {
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
                     _ => panic!("invalid scanline cycle: {}", self.scanline_cycle)
-                }
+                };
 
-                // Updates coarse/fine scroll and shift registers
-                //self.update_bg_render_state();
+                cycle_result
+
                 
 
                 //if self.scanline_cycle == 1 {
@@ -488,8 +521,10 @@ impl Ppu {
         }
     }
 
-    fn update_bg_render_state(&mut self) {
+    fn update_bg_shift_registers(&mut self) {
         if matches!(self.bg_render_state.fetch_state, PpuBgFetchState::BackgroundMSBRead) {
+            trace!("ppu: updating bg shift registers on scanline: {}, cycle: {}",
+                    self.scanline, self.scanline_cycle);
             // last thing we did was read the BG pattern table MSB,
             // so update the shift registers
             self.bg_render_state.pattern_tile_lsb_register.push_byte(
@@ -499,9 +534,20 @@ impl Ppu {
                 self.bg_render_state.bg_msb
             );
         }
+        else {
+            panic!("background fetch state out of sync with scanline cycle {}, {}, {:?}",
+                self.scanline, self.scanline_cycle, self.bg_render_state.fetch_state);
+        }
+    }
 
-
-
+    fn update_coarse_x(&mut self) {
+        if (self.reg.v & 0x001F) == 31 { // if coarse X == 31
+            self.reg.v &= !0x001F;       // coarse X = 0
+            self.reg.v ^= 0x0400;        // switch horizontal nametable
+        }
+        else {
+            self.reg.v += 1;             // increment coarse X
+        }
     }
 
     fn render_pixel(&mut self) -> PpuCycleResult {
