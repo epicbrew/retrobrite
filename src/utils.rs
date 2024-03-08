@@ -18,12 +18,12 @@ pub fn set_bit_from(bit: u8, from: u8, output_value: &mut u8) {
     };
 }
 
-pub fn set_bits_from_mask(bits: u8, mask: u8, dest: &mut u8) {
-    *dest = (*dest & !mask) | (bits & mask)
-}
+//pub fn set_bits_from_mask(source: u8, mask: u8, dest: &mut u8) {
+//    *dest = (*dest & !mask) | (source & mask)
+//}
 
-pub fn set_bits_from_mask_u16(bits: u16, mask: u16, dest: &mut u16) {
-    *dest = (*dest & !mask) | (bits & mask)
+pub fn set_bits_from_mask_u16(source: u16, mask: u16, dest: &mut u16) {
+    *dest = (*dest & !mask) | (source & mask)
 }
 
 pub fn same_page(addr1: u16, addr2: u16) -> bool {

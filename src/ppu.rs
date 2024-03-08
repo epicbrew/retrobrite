@@ -1,4 +1,4 @@
-use crate::utils::{self, set_bits_from_mask_u16};
+use crate::utils::{self, clear_bit, set_bit, set_bits_from_mask_u16};
 use crate::mem::Memory;
 
 /// Size of Object Attribute Memory.
@@ -9,7 +9,7 @@ pub enum PpuCycleResult {
     Pixel {scanline: u16, x: u16, color: u8},
     HBlank {scanline: u16},
     PostRenderLine,
-    VBlankLine {scanline: u16},
+    VBlankLine {trigger_nmi: bool, scanline: u16},
     PreRenderLine,
 }
 
@@ -77,6 +77,7 @@ impl PpuCtrl {
         self.sprite_pt_addr_8x8 = self.get_sprite_pt_addr();
         self.bg_pt_addr = self.get_bg_pt_addr();
         self.sprite_size = self.get_sprite_size();
+        self.generate_nmi = self.get_nmi_generate();
     }
 
     fn get_base_nt_addr(&self) -> u16 {
@@ -357,11 +358,6 @@ impl Ppu {
         
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
-                // I think we can update the render state here, but it might
-                // need to be done after the match statement.
-                //self.update_bg_render_state();
-
-                // TODO: Figure out when to cycle bg fetch state and when to update the shift registers
 
                 let cycle_result = match self.scanline_cycle {
                     0 => {
@@ -384,9 +380,23 @@ impl Ppu {
                         }
                         self.bg_render_state.fetch_state.next();
 
+                        if self.scanline_cycle == 256 {
+                            self.update_fine_y();
+                        }
+
                         pixel
                     }
-                    257..=320 => {
+                    257 => {
+                        /*
+                          Reset horizontal position in v from t:
+                          v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+                        */
+                        set_bits_from_mask_u16(self.reg.t, 0x041F, &mut self.reg.v);
+
+                        self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
+                        PpuCycleResult::HBlank { scanline: self.scanline }
+                    }
+                    258..=320 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
@@ -405,58 +415,83 @@ impl Ppu {
                         self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
-                    337 => {
+                    337 | 339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches();
                         self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
-                    338 => {
+                    338 | 340 => {
                         self.do_bg_fetches();
                         PpuCycleResult::HBlank { scanline: self.scanline }
                     }
-                    339 => {
-                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                        self.do_bg_fetches();
-                        self.bg_render_state.fetch_state.next();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
-                    }
-                    340 => {
-                        self.do_bg_fetches();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
-                    }
-                    _ => panic!("invalid scanline cycle: {}", self.scanline_cycle)
+                    _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
                 };
 
                 cycle_result
-
-                
-
-                //if self.scanline_cycle == 1 {
-                //    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                //}
-
-                //// Unclear if fetches should be done before or after pixel rendering.
-                //let cycle_result = self.render_pixel();
-
-                //self.do_bg_fetches();
-                //self.update_bg_render_state();
-
-                //cycle_result
             },
-            240 => PpuCycleResult::Idle,
+            240 => PpuCycleResult::PostRenderLine,
             241 => {
                 if self.scanline_cycle == 1 {
-                    // TODO: Set VBlank flag
+                    self.set_vblank_flag();
+                    let do_nmi = self.reg.ppu_ctrl.generate_nmi;
+                    PpuCycleResult::VBlankLine { trigger_nmi: do_nmi, scanline: self.scanline }
+                } else {
+                    PpuCycleResult::VBlankLine { trigger_nmi: false, scanline: self.scanline }
                 }
-                PpuCycleResult::VBlankLine { scanline: self.scanline }
             }
-            242..=260 => PpuCycleResult::VBlankLine { scanline: self.scanline },
+            242..=260 => PpuCycleResult::VBlankLine { trigger_nmi: false, scanline: self.scanline },
             261 => {
-                if self.scanline_cycle == 1 {
-                    self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                    self.clear_vblank_sprite0_overflow();
-                }
+                match self.scanline_cycle {
+                    0 => (),
+                    1 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        self.clear_vblank_and_sprite_overflow();
+                    },
+                    2..=256 => (),
+                    257 => {
+                        /*
+                          Reset horizontal position in v from t:
+                          v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+                        */
+                        set_bits_from_mask_u16(self.reg.t, 0x041F, &mut self.reg.v);
+
+                    },
+                    258..=279 => (),
+                    280..=304 => {
+                        /* Set vertical position in v from t:
+                           v: GHIA.BC DEF..... <- t: GHIA.BC DEF.....
+                        */
+                        set_bits_from_mask_u16(self.reg.t, 0x7BE0, &mut self.reg.v);
+                    }
+                    305..=320 => (),
+                    //
+                    // TODO: There is some duplication here with the visible scanline cycles.
+                    //       Refactor.
+                    321..=336 => {
+                        if self.scanline_cycle == 321 {
+                            self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        }
+
+                        self.do_bg_fetches();
+
+                        if self.scanline_cycle % 8 == 0 {
+                            self.update_bg_shift_registers();
+                            self.update_coarse_x();
+                        }
+
+                        self.bg_render_state.fetch_state.next();
+                    }
+                    337 | 339 => {
+                        self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
+                        self.do_bg_fetches();
+                        self.bg_render_state.fetch_state.next();
+                    }
+                    338 | 340 => {
+                        self.do_bg_fetches();
+                    }
+                    _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
+                };
 
                 PpuCycleResult::PreRenderLine
             },
@@ -489,8 +524,6 @@ impl Ppu {
             }
             PpuBgFetchState::AttrtableRead => {
                 self.bg_render_state.attribute_data = self.mem.read(self.bg_render_state.attribute_addr);
-                // this is wrong
-                //self.reg.v += self.reg.ppu_ctrl.vram_increment;
             }
             // DCBA98 76543210
             // ---------------
@@ -550,14 +583,40 @@ impl Ppu {
         }
     }
 
+    fn update_fine_y(&mut self) {
+        if (self.reg.v & 0x7000) != 0x7000 {  // if fine Y < 7
+          self.reg.v += 0x1000;               // increment fine Y
+        }
+        else {
+          self.reg.v &= !0x7000;                   // fine Y = 0
+          let mut y = (self.reg.v & 0x03E0) >> 5; // let y = coarse Y
+          if y == 29 {
+              y = 0;                               // coarse Y = 0
+              self.reg.v ^= 0x0800;                // switch vertical nametable
+          }
+          else if y == 31 {
+              y = 0;                          // coarse Y = 0, nametable not switched
+          }
+          else {
+              y += 1;                         // increment coarse Y
+          }
+          self.reg.v = (self.reg.v & !0x03E0) | (y << 5);     // put coarse Y back into v
+        }
+    }
+
     fn render_pixel(&mut self) -> PpuCycleResult {
         // TODO: Needs implementation
         PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: 0 }
     }
 
 
-    fn clear_vblank_sprite0_overflow(&mut self) {
-        // TODO: Implement
+    fn clear_vblank_and_sprite_overflow(&mut self) {
+        clear_bit(7, &mut self.reg.ppu_status);
+        clear_bit(5, &mut self.reg.ppu_status);
+    }
+
+    fn set_vblank_flag(&mut self) {
+        set_bit(7, &mut self.reg.ppu_status);
     }
 
     /// Write to ppuctrl register.
