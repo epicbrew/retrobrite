@@ -119,9 +119,25 @@ fn main() {
             cpu.cycle_to(&mut mc, cycle);
 
             let mut ppu_ref = ppu.borrow_mut();
-            ppu_ref.cycle();
-            ppu_ref.cycle();
-            ppu_ref.cycle();
+
+            for _ in 1..=3 {
+                match ppu_ref.cycle() {
+                    ppu::PpuCycleResult::Idle => (),
+                    ppu::PpuCycleResult::Pixel { scanline, x, color } => (),
+                    ppu::PpuCycleResult::HBlank { scanline } => (),
+                    ppu::PpuCycleResult::PostRenderLine => (),
+                    ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline } => {
+                        if trigger_nmi {
+                            cpu.set_nmi_flag();
+                        }
+                    }
+                    ppu::PpuCycleResult::PreRenderLine => (),
+                }
+            }
+
+            //ppu_ref.cycle();
+            //ppu_ref.cycle();
+            //ppu_ref.cycle();
 
             cycles_this_frame += 1;
         }

@@ -91,6 +91,9 @@ pub struct Cpu {
 
     /// Bookkeeping vec that keeps track of the bytes consumed for each instruction.
     bytes_consumed: Vec<u8>,
+
+    /// Flag signaling NMI interupt was triggered
+    nmi_flag: bool,
 }
 
 impl Cpu {
@@ -106,6 +109,7 @@ impl Cpu {
             extra_cycles: 0,
             cycle_count: 7,
             bytes_consumed: Vec::new(),
+            nmi_flag: false,
         };
 
         new_self.reg.A = 0;
@@ -129,21 +133,54 @@ impl Cpu {
         self.reg.P = 0x34; // Not sure if this is correct
     }
 
+    /// Sets the program counter to the given value (for debug/testing).
+    pub fn set_program_counter(&mut self, addr: u16) {
+        self.reg.PC = addr;
+    }
+
+    /// Called to set the NMI flag to true, which will trigger the NMI
+    /// handler on the next executed cycle.
+    pub fn set_nmi_flag(&mut self) {
+        self.nmi_flag = true;
+    }
+
     ///
     /// Execute until to (or slightly beyond) the given cycle number.
     /// Note the CPU may overshoot the given cycle number by the amount of
     /// cycles used by the last instruction.
     /// 
     pub fn cycle_to(&mut self, state: &mut NesState, cycle: u64) {
+        let interupt_cycles = self.handle_interupts(state);
+
+        self.cycle_count += interupt_cycles;
+
         while self.cycle_count < cycle {
             let cycles_used = self.execute(state);
             self.cycle_count += cycles_used;
         }
     }
 
-    /// Sets the program counter to the given value (for debug/testing).
-    pub fn set_program_counter(&mut self, addr: u16) {
-        self.reg.PC = addr;
+    fn handle_interupts(&mut self, state: &mut NesState) -> u64 {
+        let mut interupt_cycles = 0;
+
+        if self.nmi_flag {
+            debug!("\n\nTRIGGERING NMI!\n\n");
+            // Reset flag so we don't process this NMI again next cycle
+            self.nmi_flag = false;
+
+            self.stack_push_word(state, self.reg.PC);
+            self.stack_push(state, self.reg.P);
+
+            self.reg.PC = state.cpu_mem_read_word(self.cycle_count, 0xFFFA);
+
+            interupt_cycles = 7;
+        }
+        // Make sure to else if here when adding more interrupts to avoid
+        // overriding the reaction to NMI. Also need to read more about
+        // interrupt hijacking as there are specific behaviors when multple
+        // interrupts are triggered together or over a short time period.
+
+        interupt_cycles
     }
 
     fn execute(&mut self, state: &mut NesState) -> u64 {

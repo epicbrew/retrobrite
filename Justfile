@@ -14,7 +14,7 @@ run ROM:
     RUST_LOG=info cargo run -- "{{ROM}}"
 
 debugrun ROM:
-    RUST_LOG=debug cargo run -- "{{ROM}}"
+    RUST_BACKTRACE=1 RUST_LOG=debug cargo run -- "{{ROM}}"
 
 runrelease ROM:
     RUST_LOG=info cargo run --release -- "{{ROM}}"
