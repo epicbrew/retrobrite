@@ -1,13 +1,14 @@
-use crate::utils::{self, clear_bit, set_bit, set_bits_from_mask_u16};
+use crate::utils::{self, bit_is_set, clear_bit, set_bit, set_bits_from_mask_u16};
 use crate::mem::Memory;
 
 /// Size of Object Attribute Memory.
 const OAM_SIZE: usize = 256;
 
+#[derive(Debug)]
 pub enum PpuCycleResult {
     Idle,
     Pixel {scanline: u16, x: u16, color: u8},
-    HBlank {scanline: u16},
+    HBlank {scanline: u16, cycle: u16},
     PostRenderLine,
     VBlankLine {trigger_nmi: bool, scanline: u16},
     PreRenderLine,
@@ -133,6 +134,50 @@ impl PpuCtrl {
 }
 
 ///
+/// PPUMASK fields. This struct receives the raw value written to PPUMASK
+/// and parses the value into fields.
+/// 7  bit  0
+/// ---- ----
+/// BGRs bMmG
+/// |||| ||||
+/// |||| |||+- Greyscale (0: normal color, 1: produce a greyscale display)
+/// |||| ||+-- 1: Show background in leftmost 8 pixels of screen, 0: Hide
+/// |||| |+--- 1: Show sprites in leftmost 8 pixels of screen, 0: Hide
+/// |||| +---- 1: Show background
+/// |||+------ 1: Show sprites
+/// ||+------- Emphasize red (green on PAL/Dendy)
+/// |+-------- Emphasize green (red on PAL/Dendy)
+/// +--------- Emphasize blue
+///
+#[derive(Default)]
+struct PpuMask {
+    /// Raw value written via $2001
+    value: u8,
+    greyscale: bool,
+    show_bg_leftmost_8px: bool,
+    show_sprites_leftmost_8px: bool,
+    render_bg: bool,
+    render_sprites: bool,
+    emphasize_red: bool,
+    emphasize_green: bool,
+    emphasize_blue: bool,
+}
+
+impl PpuMask {
+    fn update(&mut self, value: u8) {
+        self.value = value;
+        self.greyscale = bit_is_set(0, value);
+        self.show_bg_leftmost_8px = bit_is_set(1, value);
+        self.show_sprites_leftmost_8px = bit_is_set(2, value);
+        self.render_bg = bit_is_set(3, value);
+        self.render_sprites = bit_is_set(4, value);
+        self.emphasize_red = bit_is_set(5, value);
+        self.emphasize_green = bit_is_set(6, value);
+        self.emphasize_blue = bit_is_set(7, value);
+    }
+}
+
+///
 /// Ppu registers.
 /// Descriptions per https://www.nesdev.org/wiki/PPU_registers.
 ///
@@ -150,7 +195,7 @@ struct PpuRegisters {
     /// color emphasis (BGR), sprite enable (s), background enable (b),
     /// sprite left column enable (M), background left column enable (m), greyscale (G)
     /// 
-    ppu_mask: u8,
+    ppu_mask: PpuMask,
 
     ///
     /// PPU Status (Cpu: $2002, Bits: VSO- ----).
@@ -216,11 +261,6 @@ impl PpuBgFetchState {
         }
     }
 }
-//impl Default for PpuFetchState {
-//    fn default() -> Self {
-//        PpuFetchState::Idle
-//    }
-//}
 
 #[derive(Default)]
 struct ShiftRegister16Bit {
@@ -355,9 +395,17 @@ impl Ppu {
 
     pub fn cycle(&mut self) -> PpuCycleResult {
         self.total_cycle_count += 1;
-        
+
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
+
+                //
+                // DEBUG stuff
+                //
+                //if !self.reg.ppu_mask.render_bg {
+                //    self.set_next_cycle();
+                //    return PpuCycleResult::Idle;
+                //}
 
                 let cycle_result = match self.scanline_cycle {
                     0 => {
@@ -370,7 +418,7 @@ impl Ppu {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
-                        let pixel = self.render_pixel();
+                        let pixel = self.render_bg_pixel();
 
                         self.do_bg_fetches();
 
@@ -387,18 +435,14 @@ impl Ppu {
                         pixel
                     }
                     257 => {
-                        /*
-                          Reset horizontal position in v from t:
-                          v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
-                        */
-                        set_bits_from_mask_u16(self.reg.t, 0x041F, &mut self.reg.v);
+                        self.reset_horizontal_position_in_v();
 
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
-                        PpuCycleResult::HBlank { scanline: self.scanline }
+                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     258..=320 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
-                        PpuCycleResult::HBlank { scanline: self.scanline }
+                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     321..=336 => {
                         if self.scanline_cycle == 321 {
@@ -413,17 +457,17 @@ impl Ppu {
                         }
 
                         self.bg_render_state.fetch_state.next();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
+                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     337 | 339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches();
                         self.bg_render_state.fetch_state.next();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
+                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     338 | 340 => {
                         self.do_bg_fetches();
-                        PpuCycleResult::HBlank { scanline: self.scanline }
+                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
                 };
@@ -435,6 +479,7 @@ impl Ppu {
                 if self.scanline_cycle == 1 {
                     self.set_vblank_flag();
                     let do_nmi = self.reg.ppu_ctrl.generate_nmi;
+                    //let do_nmi = true;
                     PpuCycleResult::VBlankLine { trigger_nmi: do_nmi, scanline: self.scanline }
                 } else {
                     PpuCycleResult::VBlankLine { trigger_nmi: false, scanline: self.scanline }
@@ -450,19 +495,11 @@ impl Ppu {
                     },
                     2..=256 => (),
                     257 => {
-                        /*
-                          Reset horizontal position in v from t:
-                          v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
-                        */
-                        set_bits_from_mask_u16(self.reg.t, 0x041F, &mut self.reg.v);
-
+                        self.reset_horizontal_position_in_v();
                     },
                     258..=279 => (),
                     280..=304 => {
-                        /* Set vertical position in v from t:
-                           v: GHIA.BC DEF..... <- t: GHIA.BC DEF.....
-                        */
-                        set_bits_from_mask_u16(self.reg.t, 0x7BE0, &mut self.reg.v);
+                        self.reset_vertical_position_in_v();
                     }
                     305..=320 => (),
                     //
@@ -574,41 +611,67 @@ impl Ppu {
     }
 
     fn update_coarse_x(&mut self) {
-        if (self.reg.v & 0x001F) == 31 { // if coarse X == 31
-            self.reg.v &= !0x001F;       // coarse X = 0
-            self.reg.v ^= 0x0400;        // switch horizontal nametable
-        }
-        else {
-            self.reg.v += 1;             // increment coarse X
+        if self.reg.ppu_mask.render_bg {
+            if (self.reg.v & 0x001F) == 31 { // if coarse X == 31
+                self.reg.v &= !0x001F;       // coarse X = 0
+                self.reg.v ^= 0x0400;        // switch horizontal nametable
+            }
+            else {
+                self.reg.v += 1;             // increment coarse X
+            }
         }
     }
 
     fn update_fine_y(&mut self) {
-        if (self.reg.v & 0x7000) != 0x7000 {  // if fine Y < 7
-          self.reg.v += 0x1000;               // increment fine Y
-        }
-        else {
-          self.reg.v &= !0x7000;                   // fine Y = 0
-          let mut y = (self.reg.v & 0x03E0) >> 5; // let y = coarse Y
-          if y == 29 {
-              y = 0;                               // coarse Y = 0
-              self.reg.v ^= 0x0800;                // switch vertical nametable
-          }
-          else if y == 31 {
-              y = 0;                          // coarse Y = 0, nametable not switched
-          }
-          else {
-              y += 1;                         // increment coarse Y
-          }
-          self.reg.v = (self.reg.v & !0x03E0) | (y << 5);     // put coarse Y back into v
+        if self.reg.ppu_mask.render_bg {
+            if (self.reg.v & 0x7000) != 0x7000 {  // if fine Y < 7
+              self.reg.v += 0x1000;               // increment fine Y
+            }
+            else {
+              self.reg.v &= !0x7000;                   // fine Y = 0
+              let mut y = (self.reg.v & 0x03E0) >> 5; // let y = coarse Y
+              if y == 29 {
+                  y = 0;                               // coarse Y = 0
+                  self.reg.v ^= 0x0800;                // switch vertical nametable
+              }
+              else if y == 31 {
+                  y = 0;                          // coarse Y = 0, nametable not switched
+              }
+              else {
+                  y += 1;                         // increment coarse Y
+              }
+              self.reg.v = (self.reg.v & !0x03E0) | (y << 5);     // put coarse Y back into v
+            }
         }
     }
 
-    fn render_pixel(&mut self) -> PpuCycleResult {
+    fn reset_horizontal_position_in_v(&mut self) {
+        if self.reg.ppu_mask.render_bg {
+            /*
+              Reset horizontal position in v from t:
+              v: ....A.. ...BCDEF <- t: ....A.. ...BCDEF
+            */
+            set_bits_from_mask_u16(self.reg.t, 0x041F, &mut self.reg.v);
+        }
+    }
+
+    fn reset_vertical_position_in_v(&mut self) {
+        if self.reg.ppu_mask.render_bg {
+            /* Set vertical position in v from t:
+               v: GHIA.BC DEF..... <- t: GHIA.BC DEF.....
+            */
+            set_bits_from_mask_u16(self.reg.t, 0x7BE0, &mut self.reg.v);
+        }
+    }
+
+    fn render_bg_pixel(&mut self) -> PpuCycleResult {
         // TODO: Needs implementation
-        PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: 0 }
+        if self.reg.ppu_mask.render_bg {
+            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: 0 }
+        } else {
+            PpuCycleResult::Idle
+        }
     }
-
 
     fn clear_vblank_and_sprite_overflow(&mut self) {
         clear_bit(7, &mut self.reg.ppu_status);
@@ -634,7 +697,7 @@ impl Ppu {
 
     /// Write to ppumask register.
     pub fn write_2001_ppumask(&mut self, value: u8) {
-        self.reg.ppu_mask = value;
+        self.reg.ppu_mask.update(value);
     }
 
     /// Read and return ppustatus. Various side effects occur from reading this
@@ -720,6 +783,8 @@ impl Ppu {
                 self.reg.v = self.reg.t;
 
                 self.reg.w.toggle();
+
+                //println!("t: {:04X}, v: {:04X}", self.reg.t, self.reg.v);
             }
         }
         
@@ -737,6 +802,7 @@ impl Ppu {
     pub fn write_2007_ppudata(&mut self, value: u8) {
         self.mem.write(self.reg.v, value);
         self.reg.v += self.reg.ppu_ctrl.vram_increment;
+        //println!("t: {:04X}, v: {:04X}", self.reg.t, self.reg.v);
     }
 
     pub fn read_2007_ppudata(&mut self) -> u8 {

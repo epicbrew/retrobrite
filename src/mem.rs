@@ -58,6 +58,7 @@ impl Memory {
 
     /// Write an 8-bit value to memory.
     pub fn write(&mut self, addr: u16, value: u8) {
+        //println!("write addr: {:04X}, {}", addr, addr);
         self.mem[addr as usize] = value;
     }
 

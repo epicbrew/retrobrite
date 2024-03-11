@@ -118,6 +118,7 @@ impl Cpu {
         new_self.reg.PC = state.raw_cpu_mem_read_word(0xFFFC);
         new_self.reg.SP = 0xFD;
         new_self.reg.P = 0x24;
+        //new_self.reg.P = 0x04; // Not 100% sure what the correct value here is (0x24?)
 
         new_self
     }
@@ -149,15 +150,18 @@ impl Cpu {
     /// Note the CPU may overshoot the given cycle number by the amount of
     /// cycles used by the last instruction.
     /// 
-    pub fn cycle_to(&mut self, state: &mut NesState, cycle: u64) {
+    pub fn cycle_to(&mut self, state: &mut NesState, cycle: u64) -> u64 {
+        let mut cpu_cycles_used = 0;
         let interupt_cycles = self.handle_interupts(state);
 
         self.cycle_count += interupt_cycles;
 
         while self.cycle_count < cycle {
-            let cycles_used = self.execute(state);
-            self.cycle_count += cycles_used;
+            cpu_cycles_used = self.execute(state);
+            self.cycle_count += cpu_cycles_used;
         }
+
+        interupt_cycles + cpu_cycles_used
     }
 
     fn handle_interupts(&mut self, state: &mut NesState) -> u64 {
@@ -169,7 +173,13 @@ impl Cpu {
             self.nmi_flag = false;
 
             self.stack_push_word(state, self.reg.PC);
+
+            // Clear B flag since this push is happeing for NMI
+            utils::clear_bit(4, &mut self.reg.P);
             self.stack_push(state, self.reg.P);
+
+            // Set I flag
+            utils::set_bit(2, &mut self.reg.P);
 
             self.reg.PC = state.cpu_mem_read_word(self.cycle_count, 0xFFFA);
 
@@ -1381,6 +1391,7 @@ mod tests {
                 extra_cycles: 0,
                 cycle_count: 0,
                 bytes_consumed: Vec::new(),
+                nmi_flag: false,
             }
         }
     }

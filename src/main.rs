@@ -72,13 +72,13 @@ fn main() {
     let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
     let ppu = Rc::new(RefCell::new(Ppu::new()));
-    let mut mc = NesState::new(Rc::clone(&ppu));
+    let mut state = NesState::new(Rc::clone(&ppu));
 
-    mapper.load_rom(&mut mc, &ines_file);
+    mapper.load_rom(&mut state, &ines_file);
 
     mapper.print_info();
 
-    let mut cpu = Cpu::new(&mc);
+    let mut cpu = Cpu::new(&state);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -102,6 +102,7 @@ fn main() {
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
+    info!("reset vector: {:04X}", state.cpu_mem_read_word(0, 0xFFFC));
 
     'mainloop: loop {
         let mut cycles_this_frame: u64 = 0;
@@ -116,15 +117,18 @@ fn main() {
                 break 'mainloop;
             }
 
-            cpu.cycle_to(&mut mc, cycle);
+            let cpu_cyles_used = cpu.cycle_to(&mut state, cycle);
 
             let mut ppu_ref = ppu.borrow_mut();
 
-            for _ in 1..=3 {
-                match ppu_ref.cycle() {
+            for _ in 0..cpu_cyles_used*3 {
+            //for _ in 0..3 {
+                let ppu_result = ppu_ref.cycle();
+                //println!("PPU: {:?}", ppu_result);
+                match ppu_result {
                     ppu::PpuCycleResult::Idle => (),
                     ppu::PpuCycleResult::Pixel { scanline, x, color } => (),
-                    ppu::PpuCycleResult::HBlank { scanline } => (),
+                    ppu::PpuCycleResult::HBlank { scanline, cycle} => (),
                     ppu::PpuCycleResult::PostRenderLine => (),
                     ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline } => {
                         if trigger_nmi {
