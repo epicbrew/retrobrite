@@ -306,6 +306,18 @@ struct PpuBgRenderState {
 
     pattern_tile_msb_register: ShiftRegister16Bit,
     pattern_tile_lsb_register: ShiftRegister16Bit,
+
+    /// Shift register for attribute/palette most significant bit.
+    /// Lower 8 bits of this are selected every hori(v) and set to
+    /// either 0xFF or 0x00 to emulate the PPU 1-bit latch in a way
+    /// that is easy to shift each pixel.
+    attribute_msb_shift_register: u16,
+
+    /// Shift register for attribute/palette least significant bit.
+    /// Lower 8 bits of this are selected every hori(v) and set to
+    /// either 0xFF or 0x00 to emulate the PPU 1-bit latch in a way
+    /// that is easy to shift each pixel.
+    attribute_lsb_shift_register: u16,
 }
 
 ///
@@ -603,6 +615,28 @@ impl Ppu {
             self.bg_render_state.pattern_tile_msb_register.push_byte(
                 self.bg_render_state.bg_msb
             );
+
+            // Fill attribute msb shift register with bit 1 of coarse Y
+            // Lower 8 bits get filled with the bit.
+            if utils::bit_is_set_u16(6, self.reg.v) {
+                set_bits_from_mask_u16(0xFFFF, 0x00FF,
+                &mut self.bg_render_state.attribute_msb_shift_register);
+            }
+            else {
+                set_bits_from_mask_u16(0xFF00, 0x00FF,
+                &mut self.bg_render_state.attribute_msb_shift_register);
+            }
+
+            // Fill attribute lsb shift register with bit 1 of coarse X
+            // Lower 8 bits get filled with the bit.
+            if utils::bit_is_set_u16(1, self.reg.v) {
+                set_bits_from_mask_u16(0xFFFF, 0x00FF,
+                &mut self.bg_render_state.attribute_lsb_shift_register);
+            }
+            else {
+                set_bits_from_mask_u16(0xFF00, 0x00FF,
+                &mut self.bg_render_state.attribute_lsb_shift_register);
+            }
         }
         else {
             panic!("background fetch state out of sync with scanline cycle {}, {}, {:?}",

@@ -3,6 +3,10 @@ pub fn bit_is_set(bit: u8, input: u8) -> bool {
     (input & (1 << bit)) != 0
 }
 
+pub fn bit_is_set_u16(bit: u16, input: u16) -> bool {
+    (input & (1u16 << bit)) != 0
+}
+
 pub fn set_bit(bit: u8, input: &mut u8) {
     *input |= 1 << bit;
 }
