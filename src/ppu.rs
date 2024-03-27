@@ -262,19 +262,26 @@ impl PpuBgFetchState {
     }
 }
 
+///
+/// 16-bit shift register used for background tile and attribute data
+/// during rendering. Calling shift() will shift the contents to the
+/// left. Newest data is in the least significant byte.
+/// 
 #[derive(Default)]
 struct ShiftRegister16Bit {
-    /// Lower 8 bits of register.
-    lo: u8,
-    /// Upper 8 bits of register.
-    hi: u8,
+    /// Contents of shift register. 
+    contents: u16
 }
 
-/// Shift register used for holding rendering data/state.
 impl ShiftRegister16Bit {
+    /// Push a byte into the lower 8 bits of the register.
     fn push_byte(&mut self, byte: u8) {
-        self.lo = self.hi;  // Shift upper byte to lower byte
-        self.hi = byte;     // Set upper byte to new byte
+        set_bits_from_mask_u16(byte as u16, 0x00FF, &mut self.contents);
+    }
+
+    /// Shift contents to the left.
+    fn shift(&mut self) {
+        self.contents <<= 1;
     }
 }
 
@@ -311,13 +318,13 @@ struct PpuBgRenderState {
     /// Lower 8 bits of this are selected every hori(v) and set to
     /// either 0xFF or 0x00 to emulate the PPU 1-bit latch in a way
     /// that is easy to shift each pixel.
-    attribute_msb_shift_register: u16,
+    attribute_msb_shift_register: ShiftRegister16Bit,
 
     /// Shift register for attribute/palette least significant bit.
     /// Lower 8 bits of this are selected every hori(v) and set to
     /// either 0xFF or 0x00 to emulate the PPU 1-bit latch in a way
     /// that is easy to shift each pixel.
-    attribute_lsb_shift_register: u16,
+    attribute_lsb_shift_register: ShiftRegister16Bit,
 }
 
 ///
@@ -408,16 +415,10 @@ impl Ppu {
     pub fn cycle(&mut self) -> PpuCycleResult {
         self.total_cycle_count += 1;
 
+        self.shift_bg_shift_registers();
+
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
-
-                //
-                // DEBUG stuff
-                //
-                //if !self.reg.ppu_mask.render_bg {
-                //    self.set_next_cycle();
-                //    return PpuCycleResult::Idle;
-                //}
 
                 let cycle_result = match self.scanline_cycle {
                     0 => {
@@ -603,6 +604,13 @@ impl Ppu {
         }
     }
 
+    fn shift_bg_shift_registers(&mut self) {
+        self.bg_render_state.pattern_tile_lsb_register.shift();
+        self.bg_render_state.pattern_tile_msb_register.shift();
+        self.bg_render_state.attribute_lsb_shift_register.shift();
+        self.bg_render_state.attribute_msb_shift_register.shift();
+    }
+
     fn update_bg_shift_registers(&mut self) {
         if matches!(self.bg_render_state.fetch_state, PpuBgFetchState::BackgroundMSBRead) {
             trace!("ppu: updating bg shift registers on scanline: {}, cycle: {}",
@@ -619,23 +627,19 @@ impl Ppu {
             // Fill attribute msb shift register with bit 1 of coarse Y
             // Lower 8 bits get filled with the bit.
             if utils::bit_is_set_u16(6, self.reg.v) {
-                set_bits_from_mask_u16(0xFFFF, 0x00FF,
-                &mut self.bg_render_state.attribute_msb_shift_register);
+                self.bg_render_state.attribute_msb_shift_register.push_byte(0xFF);
             }
             else {
-                set_bits_from_mask_u16(0xFF00, 0x00FF,
-                &mut self.bg_render_state.attribute_msb_shift_register);
+                self.bg_render_state.attribute_msb_shift_register.push_byte(0x0);
             }
 
             // Fill attribute lsb shift register with bit 1 of coarse X
             // Lower 8 bits get filled with the bit.
             if utils::bit_is_set_u16(1, self.reg.v) {
-                set_bits_from_mask_u16(0xFFFF, 0x00FF,
-                &mut self.bg_render_state.attribute_lsb_shift_register);
+                self.bg_render_state.attribute_lsb_shift_register.push_byte(0xFF);
             }
             else {
-                set_bits_from_mask_u16(0xFF00, 0x00FF,
-                &mut self.bg_render_state.attribute_lsb_shift_register);
+                self.bg_render_state.attribute_lsb_shift_register.push_byte(0x0);
             }
         }
         else {

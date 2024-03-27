@@ -127,10 +127,10 @@ fn main() {
                 //println!("PPU: {:?}", ppu_result);
                 match ppu_result {
                     ppu::PpuCycleResult::Idle => (),
-                    ppu::PpuCycleResult::Pixel { scanline, x, color } => (),
-                    ppu::PpuCycleResult::HBlank { scanline, cycle} => (),
+                    ppu::PpuCycleResult::Pixel { scanline: _, x: _, color: _ } => (),
+                    ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
                     ppu::PpuCycleResult::PostRenderLine => (),
-                    ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline } => {
+                    ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
                         if trigger_nmi {
                             cpu.set_nmi_flag();
                         }
