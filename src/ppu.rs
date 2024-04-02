@@ -283,6 +283,10 @@ impl ShiftRegister16Bit {
     fn shift(&mut self) {
         self.contents <<= 1;
     }
+
+    fn get_upper_byte(&self) -> u8 {
+        (self.contents >> 8) as u8
+    }
 }
 
 #[derive(Default)]
@@ -311,7 +315,10 @@ struct PpuBgRenderState {
     /// Tile's pattern table data msb.
     bg_msb: u8,
 
+    /// Shift register for LSB of currently rendering tile.
     pattern_tile_msb_register: ShiftRegister16Bit,
+
+    /// Shift register for MSB of currently rendering tile.
     pattern_tile_lsb_register: ShiftRegister16Bit,
 
     /// Shift register for attribute/palette most significant bit.
@@ -705,10 +712,21 @@ impl Ppu {
     fn render_bg_pixel(&mut self) -> PpuCycleResult {
         // TODO: Needs implementation
         if self.reg.ppu_mask.render_bg {
-            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: 0 }
+            let color_index = self.get_bg_color_index();
+
+            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: color_index }
         } else {
             PpuCycleResult::Idle
         }
+    }
+
+    // TODO: This is super simple with no scrolling. Implement scrolling.
+    fn get_bg_color_index(&self) -> u8 {
+        let lsb = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
+        let msb = self.bg_render_state.pattern_tile_msb_register.get_upper_byte();
+        
+        // Construct the 2 bit value from the appropriate bits
+        (lsb & 0x80) >> 7 | (msb & 0x80) >> 6 
     }
 
     fn clear_vblank_and_sprite_overflow(&mut self) {
