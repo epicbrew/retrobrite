@@ -3,6 +3,10 @@ pub fn bit_is_set(bit: u8, input: u8) -> bool {
     (input & (1 << bit)) != 0
 }
 
+pub fn bit_is_set_u16(bit: u16, input: u16) -> bool {
+    (input & (1u16 << bit)) != 0
+}
+
 pub fn set_bit(bit: u8, input: &mut u8) {
     *input |= 1 << bit;
 }
@@ -16,6 +20,14 @@ pub fn set_bit_from(bit: u8, from: u8, output_value: &mut u8) {
         true => set_bit(bit, output_value),
         false => clear_bit(bit, output_value)
     };
+}
+
+//pub fn set_bits_from_mask(source: u8, mask: u8, dest: &mut u8) {
+//    *dest = (*dest & !mask) | (source & mask)
+//}
+
+pub fn set_bits_from_mask_u16(source: u16, mask: u16, dest: &mut u16) {
+    *dest = (*dest & !mask) | (source & mask)
 }
 
 pub fn same_page(addr1: u16, addr2: u16) -> bool {
@@ -67,6 +79,17 @@ mod tests {
         }
 
         assert!(output_val == input);
+    }
+
+    #[test]
+    fn test_set_bits_from_mask_u16() {
+        let input: u16    = 0x01AB;
+        let mut dest: u16 = 0xF0DD;
+        let expected: u16 = 0xF1DD;
+
+        set_bits_from_mask_u16(input, 0x0300, &mut dest);
+
+        assert!(dest == expected);
     }
 
     #[test]

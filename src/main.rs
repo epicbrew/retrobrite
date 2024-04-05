@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate clap;
+extern crate sdl2;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,9 +25,11 @@ use state::NesState;
 mod ines;
 use ines::InesRom;
 
+use crate::gui::Gui;
 use crate::mappers::Mapper;
-
 mod mappers;
+
+mod gui;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
@@ -72,13 +75,13 @@ fn main() {
     let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
 
     let ppu = Rc::new(RefCell::new(Ppu::new()));
-    let mut mc = NesState::new(Rc::clone(&ppu));
+    let mut state = NesState::new(Rc::clone(&ppu));
 
-    mapper.load_rom(&mut mc, &ines_file);
+    mapper.load_rom(&mut state, &ines_file);
 
     mapper.print_info();
 
-    let mut cpu = Cpu::new(&mc);
+    let mut cpu = Cpu::new(&state);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -102,6 +105,9 @@ fn main() {
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
+    info!("reset vector: {:04X}", state.cpu_mem_read_word(0, 0xFFFC));
+
+    let mut gui = Gui::init().unwrap();
 
     'mainloop: loop {
         let mut cycles_this_frame: u64 = 0;
@@ -116,18 +122,45 @@ fn main() {
                 break 'mainloop;
             }
 
-            cpu.cycle_to(&mut mc, cycle);
+            let cpu_cyles_used = cpu.cycle_to(&mut state, cycle);
 
             let mut ppu_ref = ppu.borrow_mut();
-            ppu_ref.cycle();
-            ppu_ref.cycle();
-            ppu_ref.cycle();
+
+            for _ in 0..cpu_cyles_used*3 {
+            //for _ in 0..3 {
+                let ppu_result = ppu_ref.cycle();
+                //println!("PPU: {:?}", ppu_result);
+                match ppu_result {
+                    ppu::PpuCycleResult::Idle => (),
+                    ppu::PpuCycleResult::Pixel { scanline, x, color } => {
+                        //println!("scanline: {}, x: {}, color: {}", scanline, x, color);
+                        gui.set_pixel(x, scanline, color);
+                    },
+                    ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
+                    ppu::PpuCycleResult::PostRenderLine => (),
+                    ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
+                        if trigger_nmi {
+                            cpu.set_nmi_flag();
+                            gui.render_frame();
+                        }
+                    }
+                    ppu::PpuCycleResult::PreRenderLine => (),
+                }
+            }
+
+            //ppu_ref.cycle();
+            //ppu_ref.cycle();
+            //ppu_ref.cycle();
 
             cycles_this_frame += 1;
         }
 
         cycles_this_second += cycles_this_frame;
         frame_count += 1;
+
+        if gui.process_events() == false {
+            break 'mainloop;
+        }
         
         let frame_time_used = Instant::now() - frame_start;
 
