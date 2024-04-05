@@ -714,7 +714,9 @@ impl Ppu {
         if self.reg.ppu_mask.render_bg {
             let color_index = self.get_bg_color_index();
 
-            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle, color: color_index }
+            // scanline_cycle minux one because cycle 0 is an idle cycle, so cycle 1 is
+            // x = 0, etc.
+            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle - 1, color: color_index }
         } else {
             PpuCycleResult::Idle
         }

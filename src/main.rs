@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate log;
 extern crate clap;
+extern crate sdl2;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,9 +25,11 @@ use state::NesState;
 mod ines;
 use ines::InesRom;
 
+use crate::gui::Gui;
 use crate::mappers::Mapper;
-
 mod mappers;
+
+mod gui;
 
 const MASTER_CLOCK_HZ: u64 = 21_441_960;
 const CLOCK_DIVISOR: u64 = 12;
@@ -104,6 +107,8 @@ fn main() {
     info!("cycle_batch: {}", cycle_batch);
     info!("reset vector: {:04X}", state.cpu_mem_read_word(0, 0xFFFC));
 
+    let mut gui = Gui::init().unwrap();
+
     'mainloop: loop {
         let mut cycles_this_frame: u64 = 0;
 
@@ -127,14 +132,16 @@ fn main() {
                 //println!("PPU: {:?}", ppu_result);
                 match ppu_result {
                     ppu::PpuCycleResult::Idle => (),
-                    ppu::PpuCycleResult::Pixel { scanline: _, x: _, color: _ } => {
+                    ppu::PpuCycleResult::Pixel { scanline, x, color } => {
                         //println!("scanline: {}, x: {}, color: {}", scanline, x, color);
+                        gui.set_pixel(x, scanline, color);
                     },
                     ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
                     ppu::PpuCycleResult::PostRenderLine => (),
                     ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
                         if trigger_nmi {
                             cpu.set_nmi_flag();
+                            gui.render_frame();
                         }
                     }
                     ppu::PpuCycleResult::PreRenderLine => (),
@@ -150,6 +157,10 @@ fn main() {
 
         cycles_this_second += cycles_this_frame;
         frame_count += 1;
+
+        if gui.process_events() == false {
+            break 'mainloop;
+        }
         
         let frame_time_used = Instant::now() - frame_start;
 
