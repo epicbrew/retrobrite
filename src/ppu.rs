@@ -888,7 +888,7 @@ impl Ppu {
     }
 
     fn get_fine_y_scroll(&self) -> u8 {
-        ((self.reg.t & 0x7000) >> 12) as u8
+        ((self.reg.v & 0x7000) >> 12) as u8
     }
 
 }
