@@ -17,7 +17,7 @@ impl Gui {
     pub fn init() -> Result<Self, String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
-        let window = video_subsystem.window("Retrobrite", 256, 240)
+        let window = video_subsystem.window("Retrobrite", 256*3, 240*3)
             .position_centered()
             .build()
             .expect("Could not create window");
