@@ -631,28 +631,53 @@ impl Ppu {
                 self.bg_render_state.bg_msb
             );
 
-            // Fill attribute msb shift register with bit 1 of coarse Y
-            // Lower 8 bits get filled with the bit.
+            // Build a 2-bit value from coarse Y and X's bit 1 (Y msb, X lsb)
+            // We'll use this value as a selector for which quadrant of background
+            // attribute data to use from the attribute byte
+            let mut quadrant_selector = 0;
+
+            // coarse Y bit 1
             if utils::bit_is_set_u16(6, self.reg.v) {
-                self.bg_render_state.attribute_msb_shift_register.push_byte(0xFF);
+                quadrant_selector |= 0x2;
             }
-            else {
-                self.bg_render_state.attribute_msb_shift_register.push_byte(0x0);
+            // coarse X bit 1
+            if utils::bit_is_set_u16(1, self.reg.v) {
+                quadrant_selector |= 0x1;
             }
 
-            // Fill attribute lsb shift register with bit 1 of coarse X
-            // Lower 8 bits get filled with the bit.
-            if utils::bit_is_set_u16(1, self.reg.v) {
-                self.bg_render_state.attribute_lsb_shift_register.push_byte(0xFF);
-            }
-            else {
-                self.bg_render_state.attribute_lsb_shift_register.push_byte(0x0);
-            }
+            match quadrant_selector {
+                0 => self.fill_attribute_shift_registers(1, 0),
+                1 => self.fill_attribute_shift_registers(3, 2),
+                2 => self.fill_attribute_shift_registers(5, 4),
+                3 => self.fill_attribute_shift_registers(7, 6),
+                _ => panic!("invalid quadrant selector")
+            };
         }
         else {
             panic!("background fetch state out of sync with scanline cycle {}, {}, {:?}",
                 self.scanline, self.scanline_cycle, self.bg_render_state.fetch_state);
         }
+    }
+
+    /// Fills the attribute data shift registers. The registers are filled with all
+    /// 0's or all 1's based on if the ybit and xbit values are set in the attribute
+    /// data byte.
+    fn fill_attribute_shift_registers(&mut self, ybit: u8, xbit: u8) {
+
+        if utils::bit_is_set(ybit, self.bg_render_state.attribute_data) {
+            self.bg_render_state.attribute_msb_shift_register.push_byte(0xFF);
+        }
+        else {
+            self.bg_render_state.attribute_msb_shift_register.push_byte(0x0);
+        }
+
+        if utils::bit_is_set(xbit, self.bg_render_state.attribute_data) {
+            self.bg_render_state.attribute_lsb_shift_register.push_byte(0xFF);
+        }
+        else {
+            self.bg_render_state.attribute_lsb_shift_register.push_byte(0x0);
+        }
+
     }
 
     fn update_coarse_x(&mut self) {
@@ -724,11 +749,22 @@ impl Ppu {
 
     // TODO: This is super simple with no scrolling. Implement scrolling.
     fn get_bg_color_index(&self) -> u8 {
-        let lsb = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
-        let msb = self.bg_render_state.pattern_tile_msb_register.get_upper_byte();
-        
+        let attr_lsb = self.bg_render_state.attribute_lsb_shift_register.get_upper_byte();
+        let attr_msb = self.bg_render_state.attribute_msb_shift_register.get_upper_byte();
+        let bg_lsb = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
+        let bg_msb = self.bg_render_state.pattern_tile_msb_register.get_upper_byte();
+
+        let fine_x_bit = 0x80;
+
         // Construct the 2 bit value from the appropriate bits
-        (lsb & 0x80) >> 7 | (msb & 0x80) >> 6 
+        let color_offset = (bg_lsb & fine_x_bit) >> 7 | 
+                           (bg_msb & fine_x_bit) >> 6 | 
+                           (attr_lsb & fine_x_bit >> 5) |
+                           (attr_msb & fine_x_bit >> 4);
+
+        let color_addr: u16 = 0x3F00 + color_offset as u16;
+
+        self.mem.read(color_addr)
     }
 
     fn clear_vblank_and_sprite_overflow(&mut self) {
