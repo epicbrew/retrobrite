@@ -735,7 +735,7 @@ impl Ppu {
     }
 
     fn render_bg_pixel(&mut self) -> PpuCycleResult {
-        // TODO: Needs implementation
+
         if self.reg.ppu_mask.render_bg {
             let color_index = self.get_bg_color_index();
 
@@ -747,20 +747,24 @@ impl Ppu {
         }
     }
 
-    // TODO: This is super simple with no scrolling. Implement scrolling.
     fn get_bg_color_index(&self) -> u8 {
-        let attr_lsb = self.bg_render_state.attribute_lsb_shift_register.get_upper_byte();
-        let attr_msb = self.bg_render_state.attribute_msb_shift_register.get_upper_byte();
-        let bg_lsb = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
-        let bg_msb = self.bg_render_state.pattern_tile_msb_register.get_upper_byte();
+        let attr_lsb_byte = self.bg_render_state.attribute_lsb_shift_register.get_upper_byte();
+        let attr_msb_byte = self.bg_render_state.attribute_msb_shift_register.get_upper_byte();
+        let bg_lsb_byte = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
+        let bg_msb_byte = self.bg_render_state.pattern_tile_msb_register.get_upper_byte();
 
-        let fine_x_bit = 0x80;
+        let fine_x_bit = 0x80 >> self.reg.x;
 
-        // Construct the 2 bit value from the appropriate bits
-        let color_offset = (bg_lsb & fine_x_bit) >> 7 | 
-                           (bg_msb & fine_x_bit) >> 6 | 
-                           (attr_lsb & fine_x_bit >> 5) |
-                           (attr_msb & fine_x_bit >> 4);
+        let bg_lsb_bit = (bg_lsb_byte & fine_x_bit) >> (7 - self.reg.x);
+        let bg_msb_bit = (bg_msb_byte & fine_x_bit) >> (7 - self.reg.x);
+        let at_lsb_bit = (attr_lsb_byte & fine_x_bit) >> (7 - self.reg.x);
+        let at_msb_bit = (attr_msb_byte & fine_x_bit) >> (7 - self.reg.x);
+
+        // Construct the value from the appropriate bits
+        let color_offset = bg_lsb_bit |
+                           bg_msb_bit << 1 |
+                           at_lsb_bit << 2 |
+                           at_msb_bit << 3;
 
         let color_addr: u16 = 0x3F00 + color_offset as u16;
 
