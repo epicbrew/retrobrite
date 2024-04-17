@@ -432,13 +432,13 @@ impl Ppu {
                         PpuCycleResult::Idle
                     }
                     1..=256 => {
-                        self.shift_bg_shift_registers();
-
                         if self.scanline_cycle == 1 {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
                         let pixel = self.render_bg_pixel();
+
+                        self.shift_bg_shift_registers();
 
                         self.do_bg_fetches();
 
@@ -465,11 +465,11 @@ impl Ppu {
                         PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     321..=336 => {
-                        self.shift_bg_shift_registers();
-
                         if self.scanline_cycle == 321 {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
+
+                        self.shift_bg_shift_registers();
 
                         self.do_bg_fetches();
 
@@ -528,11 +528,11 @@ impl Ppu {
                     // TODO: There is some duplication here with the visible scanline cycles.
                     //       Refactor.
                     321..=336 => {
-                        self.shift_bg_shift_registers();
-
                         if self.scanline_cycle == 321 {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
+
+                        self.shift_bg_shift_registers();
 
                         self.do_bg_fetches();
 
