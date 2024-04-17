@@ -5,6 +5,21 @@ use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::pixels::PixelFormatEnum;
 
+/// NES resolution width
+const WIDTH: u32 = 256;
+
+// NES resolution height minus 16 scanlines of overscan
+const HEIGHT: u32 = 224;
+
+// This omits the first 8 scanlines of the display. This value
+// cannot be set above 16 without changing HEIGHT. A value of
+// 8 will have the effect of omitting the top 8 and bottom 8
+// scanlines. A value of 16 would omit the top 16 scanlines and
+// 0 bottom scanlines.
+const TOP_OVERSCAN: u16 = 8;
+
+const FRAME_BUFFER_SIZE_IN_BYTES: usize = (WIDTH * HEIGHT * 3) as usize;
+
 const PALETTE: [[u8; 3]; 64] = [
         [0x62, 0x62, 0x62],
         [0x00, 0x1f, 0xb2],
@@ -80,14 +95,14 @@ pub struct Gui {
     video_subsystem: VideoSubsystem,
     canvas: Canvas<Window>,
     event_pump: EventPump,
-    frame_buffer: [u8; 256*240*3],
+    frame_buffer: [u8; FRAME_BUFFER_SIZE_IN_BYTES],
 }
 
 impl Gui {
     pub fn init() -> Result<Self, String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
-        let window = video_subsystem.window("Retrobrite", 256*3, 240*3)
+        let window = video_subsystem.window("Retrobrite", WIDTH*3, HEIGHT*3)
             .position_centered()
             .build()
             .expect("Could not create window");
@@ -103,40 +118,37 @@ impl Gui {
                 video_subsystem,
                 canvas,
                 event_pump,
-                frame_buffer: [0; 256*240*3],
+                frame_buffer: [0; FRAME_BUFFER_SIZE_IN_BYTES],
             }
         )
     }
 
     pub fn set_pixel(&mut self, x: u16, y: u16, value: u8) {
+        // Skip scanlines in the overscan portion of the top of the screen
+        if y < TOP_OVERSCAN {
+            return;
+        }
+
+        // Skip overscan lines at the bottom of the screen that would be out
+        // of range of our frame buffer.
+        if y - TOP_OVERSCAN >= HEIGHT as u16 {
+            return;
+        }
+
         let xu = x as usize;
-        let yu = y as usize;
-        let index = ((yu * 256*3) + xu*3) as usize;
+        let yu = (y - TOP_OVERSCAN) as usize;
+        let index = (yu * WIDTH as usize * 3) + xu*3;
 
         let rgb = PALETTE[value as usize];
         self.frame_buffer[index]   = rgb[0];
         self.frame_buffer[index+1] = rgb[1];
         self.frame_buffer[index+2] = rgb[2];
-
-        // RGBX8888 pixel format
-        //let color_value: u8 = match value {
-        //    0 => 0x0,
-        //    1 => 0x80,
-        //    2 => 0xC8,
-        //    3 => 0xFF,
-        //    _ => panic!("Invalid color value (for now)"),
-        //        
-        //};
-
-        //self.frame_buffer[index] = color_value;
-        //self.frame_buffer[index+1] = color_value;
-        //self.frame_buffer[index+2] = color_value;
     }
 
     pub fn render_frame(&mut self) {
         let texture_creator = self.canvas.texture_creator();
         let surface = Surface::from_data(&mut self.frame_buffer,
-                                         256, 240, 256*3, 
+                                         WIDTH, HEIGHT, WIDTH*3, 
                                          PixelFormatEnum::RGB24).unwrap();
 
         let texture = surface.as_texture(&texture_creator).unwrap();
