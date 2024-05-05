@@ -1,5 +1,7 @@
+use crate::state::NesState;
 use crate::utils::{self, bit_is_set, clear_bit, set_bit, set_bits_from_mask_u16};
 use crate::mem::Memory;
+use crate::mappers::Mapper;
 
 /// Size of Object Attribute Memory.
 const OAM_SIZE: usize = 256;
@@ -348,7 +350,7 @@ pub struct Ppu {
     //vram_ptr: u16,
 
     /// PPU memory (vram, etc.)
-    mem: Memory,
+    //mem: Memory,
 
     /// Object Attribute Memory
     oam: Memory,
@@ -382,7 +384,7 @@ impl Ppu {
             total_cycle_count: 0,
             reg: PpuRegisters::default(),
             //vram_ptr: 0,
-            mem: Memory::new_ppu(),
+            //mem: Memory::new_ppu(),
             oam: Memory::new(OAM_SIZE),
             //ppuaddr_latch: Latch::Clear,
             ppudata_read_buffer: 0,
@@ -419,7 +421,7 @@ impl Ppu {
         }
     }
 
-    pub fn cycle(&mut self) -> PpuCycleResult {
+    pub fn cycle(&mut self, state: &mut NesState) -> PpuCycleResult {
         self.total_cycle_count += 1;
 
         let result: PpuCycleResult = match self.scanline {
@@ -428,7 +430,7 @@ impl Ppu {
                 let cycle_result = match self.scanline_cycle {
                     0 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::BackgroundLSBAddr;
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
                         PpuCycleResult::Idle
                     }
                     1..=256 => {
@@ -436,11 +438,11 @@ impl Ppu {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
-                        let pixel = self.render_bg_pixel();
+                        let pixel = self.render_bg_pixel(state);
 
                         self.shift_bg_shift_registers();
 
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
 
                         if self.scanline_cycle % 8 == 0 {
                             self.update_bg_shift_registers();
@@ -471,7 +473,7 @@ impl Ppu {
 
                         self.shift_bg_shift_registers();
 
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
 
                         if self.scanline_cycle % 8 == 0 {
                             self.update_bg_shift_registers();
@@ -483,12 +485,12 @@ impl Ppu {
                     }
                     337 | 339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
                         self.bg_render_state.fetch_state.next();
                         PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     338 | 340 => {
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
                         PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
                     }
                     _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
@@ -534,7 +536,7 @@ impl Ppu {
 
                         self.shift_bg_shift_registers();
 
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
 
                         if self.scanline_cycle % 8 == 0 {
                             self.update_bg_shift_registers();
@@ -545,11 +547,11 @@ impl Ppu {
                     }
                     337 | 339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
                         self.bg_render_state.fetch_state.next();
                     }
                     338 | 340 => {
-                        self.do_bg_fetches();
+                        self.do_bg_fetches(state);
                     }
                     _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
                 };
@@ -564,7 +566,7 @@ impl Ppu {
         result
     }
 
-    fn do_bg_fetches(&mut self) {
+    fn do_bg_fetches(&mut self, state: &mut NesState) {
         //
         // See: https://www.nesdev.org/wiki/PPU_scrolling#Tile_and_attribute_fetching
         // for details on deducing tile/attribute addresses.
@@ -576,7 +578,7 @@ impl Ppu {
             }
             PpuBgFetchState::NametableRead => {
                 self.bg_render_state.tile_value =
-                    self.mem.read(self.bg_render_state.tile_addr);
+                    state.ppu_mem_read(self.bg_render_state.tile_addr);
             }
             PpuBgFetchState::AttrtableAddr => {
                 let v = self.reg.v;
@@ -584,7 +586,7 @@ impl Ppu {
                     0x23C0 | (v & 0x0C00) | ((v >> 4) & 0x38) | ((v >> 2) & 0x07);
             }
             PpuBgFetchState::AttrtableRead => {
-                self.bg_render_state.attribute_data = self.mem.read(self.bg_render_state.attribute_addr);
+                self.bg_render_state.attribute_data = state.ppu_mem_read(self.bg_render_state.attribute_addr);
             }
             // DCBA98 76543210
             // ---------------
@@ -601,7 +603,7 @@ impl Ppu {
                               ((self.bg_render_state.tile_value as u16) << 4) | fine_y as u16;
             }
             PpuBgFetchState::BackgroundLSBRead => {
-                self.bg_render_state.bg_lsb = self.mem.read(self.bg_render_state.bg_lsb_addr);
+                self.bg_render_state.bg_lsb = state.ppu_mem_read(self.bg_render_state.bg_lsb_addr);
             }
             PpuBgFetchState::BackgroundMSBAddr => {
                 let fine_y = 0x8 | self.get_fine_y_scroll(); // Or with 0x8 for msb bit plane
@@ -610,7 +612,7 @@ impl Ppu {
                               ((self.bg_render_state.tile_value as u16) << 4) | fine_y as u16;
             }
             PpuBgFetchState::BackgroundMSBRead => {
-                self.bg_render_state.bg_msb = self.mem.read(self.bg_render_state.bg_msb_addr);
+                self.bg_render_state.bg_msb = state.ppu_mem_read(self.bg_render_state.bg_msb_addr);
             }
         }
     }
@@ -738,10 +740,10 @@ impl Ppu {
         }
     }
 
-    fn render_bg_pixel(&mut self) -> PpuCycleResult {
+    fn render_bg_pixel(&mut self, state: &mut NesState) -> PpuCycleResult {
 
         if self.reg.ppu_mask.render_bg {
-            let color_index = self.get_bg_color_index();
+            let color_index = self.get_bg_color_index(state);
 
             // scanline_cycle minux one because cycle 0 is an idle cycle, so cycle 1 is
             // x = 0, etc.
@@ -751,7 +753,7 @@ impl Ppu {
         }
     }
 
-    fn get_bg_color_index(&self) -> u8 {
+    fn get_bg_color_index(&self, state: &mut NesState) -> u8 {
         let attr_lsb_byte = self.bg_render_state.attribute_lsb_shift_register.get_upper_byte();
         let attr_msb_byte = self.bg_render_state.attribute_msb_shift_register.get_upper_byte();
         let bg_lsb_byte = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
@@ -772,7 +774,7 @@ impl Ppu {
 
         let color_addr: u16 = 0x3F00 + color_offset as u16;
 
-        self.mem.read(color_addr)
+        state.ppu_mem_read(color_addr)
     }
 
     fn clear_vblank_and_sprite_overflow(&mut self) {
@@ -901,15 +903,16 @@ impl Ppu {
         //}
     }
 
-    pub fn write_2007_ppudata(&mut self, value: u8) {
-        self.mem.write(self.reg.v, value);
+    pub fn write_2007_ppudata(&mut self, value: u8, mapper: &mut Box<dyn Mapper>) {
+        mapper.ppu_write(self.reg.v, value);
         self.reg.v += self.reg.ppu_ctrl.vram_increment;
         //println!("t: {:04X}, v: {:04X}", self.reg.t, self.reg.v);
     }
 
-    pub fn read_2007_ppudata(&mut self) -> u8 {
+    //pub fn read_2007_ppudata(&mut self, state: &mut NesState) -> u8 {
+    pub fn read_2007_ppudata(&mut self, mapper: &mut Box<dyn Mapper>) -> u8 {
         if self.reg.v > 0x3EFF {
-            let value = self.mem.read(self.reg.v);
+            let value = mapper.ppu_read(self.reg.v);
             self.reg.v += self.reg.ppu_ctrl.vram_increment;
 
             value
@@ -917,7 +920,7 @@ impl Ppu {
             let value = self.ppudata_read_buffer;
 
             self.reg.v += self.reg.ppu_ctrl.vram_increment;
-            self.ppudata_read_buffer = self.mem.read(self.reg.v);
+            self.ppudata_read_buffer = mapper.ppu_read(self.reg.v);
 
             value
         }
@@ -927,9 +930,9 @@ impl Ppu {
         self.oam.load(0, data);
     }
 
-    pub fn mem_load(&mut self, addr: u16, data: &[u8]) {
-        self.mem.load(addr, data);
-    }
+    //pub fn mem_load(&mut self, addr: u16, data: &[u8]) {
+    //    self.mem.load(addr, data);
+    //}
 
     fn get_fine_y_scroll(&self) -> u8 {
         ((self.reg.v & 0x7000) >> 12) as u8

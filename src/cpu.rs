@@ -98,7 +98,7 @@ pub struct Cpu {
 
 impl Cpu {
 
-    pub fn new(state: &NesState) -> Self {
+    pub fn new(state: &mut NesState) -> Self {
         let mut new_self = Self {
             reg: Registers::default(),
             //mem,
@@ -115,7 +115,7 @@ impl Cpu {
         new_self.reg.A = 0;
         new_self.reg.X = 0;
         new_self.reg.Y = 0;
-        new_self.reg.PC = state.raw_cpu_mem_read_word(0xFFFC);
+        new_self.reg.PC = state.cpu_mem_read_word(0xFFFC);
         new_self.reg.SP = 0xFD;
         new_self.reg.P = 0x24;
         //new_self.reg.P = 0x04; // Not 100% sure what the correct value here is (0x24?)
@@ -129,7 +129,7 @@ impl Cpu {
     ///     https://www.nesdev.org/wiki/CPU_power_up_state
     /// 
     pub fn _reset(&mut self, state: &mut NesState) {
-        self.reg.PC = state.raw_cpu_mem_read_word(0xFFFC);
+        self.reg.PC = state.cpu_mem_read_word(0xFFFC);
         self.reg.SP -= 3; 
         self.reg.P = 0x34; // Not sure if this is correct
     }
@@ -181,7 +181,7 @@ impl Cpu {
             // Set I flag
             utils::set_bit(2, &mut self.reg.P);
 
-            self.reg.PC = state.cpu_mem_read_word(self.cycle_count, 0xFFFA);
+            self.reg.PC = state.cpu_mem_read_word(0xFFFA);
 
             interupt_cycles = 7;
         }
@@ -275,14 +275,14 @@ impl Cpu {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        state.cpu_mem_read_word(cycle, addr)
+        state.cpu_mem_read_word(addr)
     }
 
     fn do_mem_write(&mut self, state: &mut NesState, addr: u16, value: u8) {
         let instruction = &Cpu::OP_CODES[self.opcode as usize];
         let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        state.cpu_mem_write(cycle, addr, value);
+        state.cpu_mem_write(addr, value);
 
         if addr == 0x4014 { // PPU OAM DMA port, takes 513 or 514 cycles
             self.extra_cycles += 513;
@@ -1378,7 +1378,9 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
+    use crate::mem::Memory;
     use crate::ppu::Ppu;
+    use crate::mappers::get_mapper;
 
     impl Cpu {
         pub fn default() -> Self {
@@ -1396,18 +1398,22 @@ mod tests {
         }
     }
 
-    fn get_mem_controller() -> NesState {
-        NesState::new(
-            Rc::new(RefCell::new(Ppu::new())),
-        )
+    fn get_mem_controller(mem: Option<Memory>) -> NesState {
+        let cpu_mem = match mem {
+            None => Memory::new_cpu(),
+            Some(mem) => mem
+        };
+
+        NesState::new(get_mapper(0, cpu_mem, Memory::new_ppu()),
+                      Rc::new(RefCell::new(Ppu::new())))
     }
 
     fn get_state_with_cpu_mem_ramp() -> NesState {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
 
         for page in 0..256 {
             for byte in 0..256 {
-                state.cpu_mem_write(byte as u64, page * 256 + byte, byte as u8);
+                state.cpu_mem_write(page * 256 + byte, byte as u8);
             }
         }
 
@@ -1417,7 +1423,7 @@ mod tests {
     #[test]
     fn test_cpu_read_byte() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&state);
+        let mut cpu = Cpu::new(&mut state);
 
         //let pc = 0x400; // address 1024 in decimal, page 4
         cpu.reg.PC = 0x400; // address 1024 in decimal, page 4 
@@ -1434,7 +1440,7 @@ mod tests {
         let pc = 0x2f0; // page 2
 
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&state);
+        let mut cpu = Cpu::new(&mut state);
 
         cpu.reg.PC = pc;
 
@@ -1446,7 +1452,7 @@ mod tests {
     #[test]
     fn test_fetch_operand_imm() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&state);
+        let mut cpu = Cpu::new(&mut state);
         cpu.reg.PC = 0x501;
 
         cpu.set_operand_address(&mut state, &AddrMode::IMM);
@@ -1456,7 +1462,7 @@ mod tests {
     #[test]
     fn test_fetch_operand_abs() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&state);
+        let mut cpu = Cpu::new(&mut state);
         cpu.reg.PC = 0xff02;
         cpu.opcode = OPCODE_ORA_ABS;
 
@@ -1475,7 +1481,7 @@ mod tests {
 
     #[test]
     fn test_and_with_zero_result() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xF0;
@@ -1488,7 +1494,7 @@ mod tests {
 
     #[test]
     fn test_and_with_negative_result() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x81;
         cpu.operand_value = 0xF1;
@@ -1501,7 +1507,7 @@ mod tests {
 
     #[test]
     fn test_eor() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x0F;
         cpu.operand_value = 0xFF;
@@ -1514,7 +1520,7 @@ mod tests {
 
     #[test]
     fn test_ora() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
         cpu.reg.A   = 0x8F;
         cpu.operand_value = 0x71;
@@ -1527,7 +1533,7 @@ mod tests {
 
     #[test]
     fn test_adc() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 1;
@@ -1565,9 +1571,6 @@ mod tests {
     #[test]
     fn test_asl() {
         // This test actually executes a small program to test ASL.
-        let mut state = get_mem_controller();
-        let mut cpu = Cpu::default();
-
         let test_program: Vec<u8> = vec![
             OPCODE_LDA_IMM, 0x81,
             OPCODE_ASL_ACC,
@@ -1581,7 +1584,12 @@ mod tests {
 
         let start_addr = 0xC000;
 
-        state.cpu_mem_load(start_addr, &test_program);
+        let mut cpu_mem = Memory::new_cpu();
+        cpu_mem.load(start_addr, &test_program);
+
+        let mut state = get_mem_controller(Some(cpu_mem));
+        let mut cpu = Cpu::default();
+
         cpu.reg.PC = start_addr;
         cpu.cycle_to(&mut state, needed_cycles);
 
@@ -1593,7 +1601,7 @@ mod tests {
 
     #[test]
     fn test_cmp() {
-        let mut state = get_mem_controller();
+        let mut state = get_mem_controller(None);
         let mut cpu = Cpu::default();
 
         cpu.reg.A = 5;
@@ -1622,9 +1630,6 @@ mod tests {
     fn test_jsr_rts() {
         let _ = env_logger::builder().is_test(true).try_init();
 
-        let mut state = get_mem_controller();
-        let mut cpu = Cpu::default();
-
         let test_program: Vec<u8> = vec![
             OPCODE_JSR_ABS, 0x32, 0xC0,
             OPCODE_LDA_ABS, 0x00, 0x10
@@ -1644,8 +1649,13 @@ mod tests {
             Cpu::OP_CODES[OPCODE_RTS as usize].cycles;
 
         let start_addr = 0xC000;
-        state.cpu_mem_load(start_addr, &test_program);
-        state.cpu_mem_load(start_addr + 0x32, &subroutine);
+        let mut cpu = Cpu::default();
+        let mut cpu_mem = Memory::new_cpu();
+
+        cpu_mem.load(start_addr, &test_program);
+        cpu_mem.load(start_addr + 0x32, &subroutine);
+
+        let mut state = get_mem_controller(Some(cpu_mem));
 
         cpu.reg.PC = start_addr;
         cpu.cycle_to(&mut state, needed_cycles);
