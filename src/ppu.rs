@@ -3,6 +3,8 @@ use crate::utils::{self, bit_is_set, clear_bit, set_bit, set_bits_from_mask_u16}
 use crate::mem::Memory;
 use crate::mappers::Mapper;
 
+pub mod constants;
+
 /// Size of Object Attribute Memory.
 const OAM_SIZE: usize = 256;
 

@@ -3,6 +3,8 @@ pub mod nrom000;
 use crate::ines::InesRom;
 use crate::mem::Memory;
 
+const NAMETABLE_0: u16 = 0x2000;
+
 ///
 /// Trait for implementing a mapper.
 /// Mappers can observe and react to all cpu and ppu memory reads/writes.

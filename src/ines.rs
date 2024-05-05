@@ -25,8 +25,8 @@ pub enum FileFormat {
 
 #[derive(Debug)]
 pub enum MirroringType {
-    HORIZONTAL,
-    VERTICAL,
+    Horizontal,
+    Vertical,
 }
 
 /**
@@ -84,9 +84,9 @@ impl Flags6 {
         let mapper_lower_nybble = flags >> 4;
 
         let mirroring = if bit_is_set(0, flags) {
-            MirroringType::VERTICAL
+            MirroringType::Vertical
         } else {
-            MirroringType::HORIZONTAL
+            MirroringType::Horizontal
         };
 
         Self {

@@ -1,13 +1,17 @@
+use std::iter::Map;
+
 use super::{Mapper, get_ppu_effective_address};
-use crate::ines::InesRom;
+use crate::ines::{InesRom, MirroringType};
 use crate::mem::Memory;
+use crate::ppu::constants::*;
 
 
 pub struct NromMapper {
     name: &'static str,
     number: u16,
     cpu_mem: Memory,
-    ppu_mem: Memory
+    ppu_mem: Memory,
+    mirroring: MirroringType,
 }
 
 pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
@@ -15,7 +19,9 @@ pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
         name: "NROM",
         number: 0,
         cpu_mem,
-        ppu_mem
+        ppu_mem,
+        mirroring: MirroringType::Horizontal
+
     }
 }
 
@@ -37,10 +43,10 @@ impl Mapper for NromMapper {
 
         self.ppu_mem.load(0x0000, &ines.chr_rom);
 
-        //match ines.header.mirroring {
-        //    ines::Mirroring::Horizontal => todo!(),
-        //    ines::Mirroring::Vertical => todo!(),
-        //}
+        self.mirroring = match ines.header.flags6.mirroring {
+            MirroringType::Horizontal => MirroringType::Horizontal,
+            MirroringType::Vertical => MirroringType::Vertical,
+        }
     }
     
     fn cpu_read(&mut self, addr: u16) -> u8 {
@@ -49,9 +55,9 @@ impl Mapper for NromMapper {
     
     fn cpu_write(&mut self, addr: u16, value: u8) {
         // Ignore writes to ROM space
-        //if addr < 0x8000 {
+        if addr < 0x8000 {
             self.cpu_mem.write(addr, value);
-        //}
+        }
     }
     
     fn get_cpu_dma_slice(&self, addr: u16) -> &[u8] {
@@ -68,7 +74,43 @@ impl Mapper for NromMapper {
 
         match addr {
             0x0000..=0x1FFF => (), // Cannot overwrite pattern table ROM
+            NAMETABLE_0..=NAMETABLE_3_END => {
+                let mirrored_address = self.get_mirrored_address(addr);
+                self.ppu_mem.write(addr, value);
+                self.ppu_mem.write(mirrored_address, value);
+            },
             _ => self.ppu_mem.write(addr, value),
         }
     }
+
+}
+
+impl NromMapper {
+    fn get_mirrored_address(&self, addr: u16) -> u16 {
+        match self.mirroring {
+            MirroringType::Horizontal => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => {
+                        addr + 0x400
+                    },
+                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => {
+                        addr - 0x400
+                    },
+                    _ => panic!("address is not within a nametable")
+                }
+            },
+            MirroringType::Vertical => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_1..=NAMETABLE_1_END => {
+                        addr + 0x800
+                    },
+                    NAMETABLE_2..=NAMETABLE_2_END | NAMETABLE_3..=NAMETABLE_3_END => {
+                        addr - 0x800
+                    },
+                    _ => panic!("address is not within a nametable")
+                }
+            }
+        }
+    }
+
 }

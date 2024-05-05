@@ -1409,15 +1409,16 @@ mod tests {
     }
 
     fn get_state_with_cpu_mem_ramp() -> NesState {
-        let mut state = get_mem_controller(None);
+        let mut cpu_mem = Memory::new_cpu();
 
         for page in 0..256 {
             for byte in 0..256 {
-                state.cpu_mem_write(page * 256 + byte, byte as u8);
+                //state.cpu_mem_write(page * 256 + byte, byte as u8);
+                cpu_mem.write(page * 256 + byte, byte as u8);
             }
         }
 
-        state
+        get_mem_controller(Some(cpu_mem))
     }
 
     #[test]
