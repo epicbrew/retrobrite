@@ -67,6 +67,7 @@ fn main() {
 
     if cli.rom_info {
         println!("Rom file: {}", rom_path.display());
+        println!("Mapper: {}", ines_file.get_mapper_number());
         println!("{:#?}", ines_file.header);
         println!("sizeof chr-rom: {}", ines_file.chr_rom.len());
         std::process::exit(0);
