@@ -1,31 +1,31 @@
-use std::iter::Map;
 
 use super::{Mapper, get_ppu_effective_address};
-use crate::ines::{InesRom, MirroringType};
+use crate::ines::{InesRom, MirroringType, PRG_ROM_CHUNK_SIZE};
 use crate::mem::Memory;
 use crate::ppu::constants::*;
 
 
-pub struct NromMapper {
+pub struct UnromMapper {
     name: &'static str,
     number: u16,
     cpu_mem: Memory,
     ppu_mem: Memory,
     mirroring: MirroringType,
+    prg_rom_banks: Vec<[u8; PRG_ROM_CHUNK_SIZE]>
 }
 
-pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
-    NromMapper {
-        name: "NROM",
-        number: 0,
+pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> UnromMapper {
+    UnromMapper {
+        name: "UNROM",
+        number: 2,
         cpu_mem,
         ppu_mem,
-        mirroring: MirroringType::Horizontal
-
+        mirroring: MirroringType::Horizontal,
+        prg_rom_banks: Vec::new()
     }
 }
 
-impl Mapper for NromMapper {
+impl Mapper for UnromMapper {
     fn name(&self) -> &'static str {
         self.name
     }
@@ -35,23 +35,12 @@ impl Mapper for NromMapper {
     }
 
     fn load_rom(&mut self, ines: &InesRom) {
-        if ines.header.num_prg_rom_chunks < 1 || ines.header.num_prg_rom_chunks > 2 {
-            panic!("nrom: invalid number of prg rom chunks");
-        }
+        self.init_prg_banks(&ines);
 
-        self.cpu_mem.load(0x8000, &ines.prg_rom[0]);
-    
-        if ines.header.num_prg_rom_chunks == 1 {
-            self.cpu_mem.load(0xC000, &ines.prg_rom[0]);
-        } else {
-            self.cpu_mem.load(0xC000, &ines.prg_rom[1]);
-        }
+        self.cpu_mem.load(0x8000, &self.prg_rom_banks[0]);
+        self.cpu_mem.load(0xC000, &self.prg_rom_banks[ines.header.num_prg_rom_chunks - 1]);
 
-        if ines.header.num_chr_rom_chunks != 1 {
-            panic!("nrom: invalid number of chr rom chunks");
-        }
-
-        self.ppu_mem.load(0x0000, &ines.chr_rom[0]);
+        //self.ppu_mem.load(0x0000, &ines.chr_rom);
 
         self.mirroring = match ines.header.flags6.mirroring {
             MirroringType::Horizontal => MirroringType::Horizontal,
@@ -64,9 +53,14 @@ impl Mapper for NromMapper {
     }
     
     fn cpu_write(&mut self, addr: u16, value: u8) {
-        // Ignore writes to ROM space
         if addr < 0x8000 {
             self.cpu_mem.write(addr, value);
+        }
+        else {
+            let bank = (value & 0x0F) as usize;
+            println!("bank switch to {}/{}, addr {}, mem val {}",
+                bank, value, addr, self.cpu_mem.read(addr));
+            self.cpu_mem.load(0x8000, &self.prg_rom_banks[bank]);
         }
     }
     
@@ -83,7 +77,6 @@ impl Mapper for NromMapper {
         let addr = get_ppu_effective_address(addr);
 
         match addr {
-            0x0000..=0x1FFF => (), // Cannot overwrite pattern table ROM
             NAMETABLE_0..=NAMETABLE_3_END => {
                 let mirrored_address = self.get_mirrored_address(addr);
                 self.ppu_mem.write(addr, value);
@@ -95,7 +88,13 @@ impl Mapper for NromMapper {
 
 }
 
-impl NromMapper {
+impl UnromMapper {
+    fn init_prg_banks(&mut self, ines: &InesRom) {
+        for bank in ines.prg_rom.iter() {
+            self.prg_rom_banks.push(*bank);
+        }
+    }
+
     fn get_mirrored_address(&self, addr: u16) -> u16 {
         match self.mirroring {
             MirroringType::Horizontal => {
