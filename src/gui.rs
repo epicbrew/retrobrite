@@ -143,7 +143,9 @@ impl Gui {
         let yu = (y - TOP_OVERSCAN) as usize;
         let index = (yu * WIDTH as usize * 3) + xu*3;
 
-        let rgb = PALETTE[value as usize];
+        // Mod value by 64 because some games rely on the palette value wrapping
+        // after 64
+        let rgb = PALETTE[(value % 64) as usize];
         self.frame_buffer[index]   = rgb[0];
         self.frame_buffer[index+1] = rgb[1];
         self.frame_buffer[index+2] = rgb[2];
