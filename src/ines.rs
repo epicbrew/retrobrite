@@ -6,13 +6,13 @@ const HEADER_SIZE: usize = 16;
 const NES_FILE_ID: [u8; 4] = [0x4E, 0x45, 0x53, 0x1A];
 
 /** Size of each PRG ROM chunk. */
-const PRG_ROM_CHUNK_SIZE: usize = 16384;
+pub const PRG_ROM_CHUNK_SIZE: usize = 16384;
 
 /** Offset to num prg rom chunks in header. */
 const PRG_ROM_CHUNKS_OFFSET: usize = 4;
 
 /** Size of each CHR ROM chunk. */
-const CHR_ROM_CHUNK_SIZE: usize = 8192;
+pub const CHR_ROM_CHUNK_SIZE: usize = 8192;
 
 /** Offset to num chr rom chunks in header. */
 const CHR_ROM_CHUNKS_OFFSET: usize = 5;
@@ -25,8 +25,8 @@ pub enum FileFormat {
 
 #[derive(Debug)]
 pub enum MirroringType {
-    HORIZONTAL,
-    VERTICAL,
+    Horizontal,
+    Vertical,
 }
 
 /**
@@ -74,8 +74,8 @@ pub struct InesHeader {
 #[derive(Debug)]
 pub struct InesRom {
     pub header: InesHeader,
-    pub prg_rom: Vec<u8>,
-    pub chr_rom: Vec<u8>,
+    pub prg_rom: Vec<[u8; PRG_ROM_CHUNK_SIZE]>,
+    pub chr_rom: Vec<[u8; CHR_ROM_CHUNK_SIZE]>,
 }
 
 impl Flags6 {
@@ -84,9 +84,9 @@ impl Flags6 {
         let mapper_lower_nybble = flags >> 4;
 
         let mirroring = if bit_is_set(0, flags) {
-            MirroringType::VERTICAL
+            MirroringType::Vertical
         } else {
-            MirroringType::HORIZONTAL
+            MirroringType::Horizontal
         };
 
         Self {
@@ -136,6 +136,46 @@ impl InesHeader {
     }
 }
 
+///
+/// Parses PRG rom buffer into a vec of PRG rom banks. Buffer
+/// should be just the slice that contains the PRG rom data.
+/// 
+fn parse_prg_rom(buffer: &[u8], num_prg_rom_chunks: usize) -> Vec<[u8; PRG_ROM_CHUNK_SIZE]> {
+    let mut prg_rom_banks = Vec::new();
+
+    for i in 0..num_prg_rom_chunks {
+        let bank_start = i * PRG_ROM_CHUNK_SIZE;
+        let bank_end = bank_start + PRG_ROM_CHUNK_SIZE;
+
+        let mut bank = [0; PRG_ROM_CHUNK_SIZE];
+        bank.copy_from_slice(&buffer[bank_start..bank_end]);
+
+        prg_rom_banks.push(bank);
+    }
+
+    prg_rom_banks
+}
+
+///
+/// Parses CHR rom buffer into a vec of CHR rom banks. Buffer
+/// should be just the slice that contains the CHR rom data.
+/// 
+fn parse_chr_rom(buffer: &[u8], num_chr_rom_chunks: usize) -> Vec<[u8; CHR_ROM_CHUNK_SIZE]> {
+    let mut chr_rom_banks = Vec::new();
+
+    for i in 0..num_chr_rom_chunks {
+        let bank_start = i * CHR_ROM_CHUNK_SIZE;
+        let bank_end = bank_start + CHR_ROM_CHUNK_SIZE;
+
+        let mut bank = [0; CHR_ROM_CHUNK_SIZE];
+        bank.copy_from_slice(&buffer[bank_start..bank_end]);
+
+        chr_rom_banks.push(bank);
+    }
+
+    chr_rom_banks
+}
+
 impl InesRom {
     pub fn from_buffer(buffer: &[u8]) -> Self {
         let header = InesHeader::parse(buffer);
@@ -148,8 +188,13 @@ impl InesRom {
         let chr_rom_offset = prg_rom_offset + prg_rom_size;
         let chr_rom_size = CHR_ROM_CHUNK_SIZE * header.num_chr_rom_chunks;
 
-        let prg_rom = buffer[prg_rom_offset..prg_rom_offset + prg_rom_size].to_vec();
-        let chr_rom = buffer[chr_rom_offset..chr_rom_offset + chr_rom_size].to_vec();
+        let prg_rom = parse_prg_rom(
+            &buffer[prg_rom_offset..prg_rom_offset + prg_rom_size],
+            header.num_prg_rom_chunks);
+
+        let chr_rom = parse_chr_rom(
+            &buffer[chr_rom_offset..chr_rom_offset + chr_rom_size],
+            header.num_chr_rom_chunks);
 
         Self {
             header,

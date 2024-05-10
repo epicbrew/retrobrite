@@ -1,24 +1,20 @@
 use std::{cell::RefCell, rc::Rc};
-//pub mod memory;
-use crate::mem::Memory;
-
 use crate::ppu::Ppu;
+use crate::mappers::Mapper;
 
 ///
-/// This structure contains state data that needs to be accessed by multiple
-/// components plus metadata about events (like read/write) to memory mapped
-/// registers. This structure is passed to the CPU, Mapper, PPU, and APU
-/// when it's their turn to cycle.
+/// Manages reads/writes to cpu and ppu memory, properly delegating calls to
+/// ppu/apu functions when memory mapped registers are used.
 /// 
 pub struct NesState {
-    cpu_mem: Memory,
+    mapper: Box<dyn Mapper>,
     ppu_ref: Rc<RefCell<Ppu>>,
 }
 
 impl NesState {
-    pub fn new(ppu_ref: Rc<RefCell<Ppu>>) -> Self {
+    pub fn new(mapper: Box<dyn Mapper>, ppu_ref: Rc<RefCell<Ppu>>) -> Self {
         Self {
-            cpu_mem: Memory::new_cpu(),
+            mapper,
             ppu_ref,
         }
     }
@@ -43,40 +39,30 @@ impl NesState {
         let addr = self.get_cpu_effective_address(addr);
 
         let read_result = match addr {
-            0x2002 => {
-                self.ppu_ref.borrow_mut().read_2002_ppustatus()
-                //let mut ppu = self.ppu_ref.borrow_mut();
-                //ppu.read_2002_ppustatus()
-            },
+            0x2002 => self.ppu_ref.borrow_mut().read_2002_ppustatus(),
             0x2004 => self.ppu_ref.borrow().read_2004_oamdata(),
-            0x2007 => self.ppu_ref.borrow_mut().read_2007_ppudata(),
-                 _ => self.cpu_mem.read(addr),
+            0x2007 => {
+                self.ppu_ref.borrow_mut().read_2007_ppudata(&mut self.mapper)
+            },
+            _ => self.mapper.cpu_read(addr)
         };
 
         read_result
     }
 
-    /// Read from CPU memory
-    pub fn _raw_cpu_mem_read(&self, addr: u16) -> u8 {
+    /// Read a 16-bit value from cpu memory.
+    pub fn cpu_mem_read_word(&mut self, addr: u16) -> u16 {
         let addr = self.get_cpu_effective_address(addr);
-        self.cpu_mem.read(addr)
-    }
 
-    /// Read a 16-bit value from memory.
-    pub fn cpu_mem_read_word(&mut self, _cycle: u64, addr: u16) -> u16 {
-        let addr = self.get_cpu_effective_address(addr);
-        self.cpu_mem.read_word(addr)
+        let lsb = self.mapper.cpu_read(addr) as u16;
+        let msb = self.mapper.cpu_read(addr + 1) as u16;
+
+        msb << 8 | lsb
     }
     
-    /// Read a 16-bit value from memory without notifying observers.
-    pub fn raw_cpu_mem_read_word(&self, addr: u16) -> u16 {
-        let addr = self.get_cpu_effective_address(addr);
-        self.cpu_mem.read_word(addr)
-    }
-
     /// Write an 8-bit value to memory, properly forwarding writes to PPU register
     /// ports as appropriate.
-    pub fn cpu_mem_write(&mut self, _cycle: u64, addr: u16, value: u8) {
+    pub fn cpu_mem_write(&mut self, addr: u16, value: u8) {
         let addr = self.get_cpu_effective_address(addr);
 
         // Handle PPU register address writes if necessary.
@@ -87,27 +73,41 @@ impl NesState {
             0x2004 => self.ppu_ref.borrow_mut().write_2004_oamdata(value),
             0x2005 => self.ppu_ref.borrow_mut().write_2005_ppuscroll(value),
             0x2006 => self.ppu_ref.borrow_mut().write_2006_ppuaddr(value),
-            0x2007 => self.ppu_ref.borrow_mut().write_2007_ppudata(value),
+            0x2007 => self.ppu_ref.borrow_mut().write_2007_ppudata(value, &mut self.mapper),
             0x4014 => { // PPU OAM DMA
                 let dma_start = u16::from_le_bytes([0x00, value]);
-                let dma_slice = self.cpu_mem.get_slice(dma_start, 256);
+                let dma_slice = self.mapper.get_cpu_dma_slice(dma_start);
 
                 let mut ppu = self.ppu_ref.borrow_mut();
                 ppu.oam_dma(dma_slice);
             },
-            _ => self.cpu_mem.write(addr, value),
+            _ => self.mapper.cpu_write(addr, value),
         }
     }
 
     /// Load a sequence of bytes into cpu memory, starting at addr.
-    pub fn cpu_mem_load(&mut self, addr: u16, data: &[u8]) {
-        let addr = self.get_cpu_effective_address(addr);
-        self.cpu_mem.load(addr, data);
+    //pub fn cpu_mem_load(&mut self, addr: u16, data: &[u8]) {
+    //    let addr = self.get_cpu_effective_address(addr);
+    //    self.cpu_mem.load(addr, data);
+    //}
+
+    // Load a sequence of bytes into ppu memory, starting at addr.
+    //pub fn ppu_mem_load(&mut self, addr: u16, data: &[u8]) {
+    //    let mut ppu = self.ppu_ref.borrow_mut();
+    //    ppu.mem_load(addr, data);
+    //}
+
+    pub fn ppu_mem_read(&mut self, addr: u16) -> u8 {
+        //let addr = self.get_ppu_effective_address(addr);
+        self.mapper.ppu_read(addr)
     }
 
-    /// Load a sequence of bytes into ppu memory, starting at addr.
-    pub fn ppu_mem_load(&mut self, addr: u16, data: &[u8]) {
-        let mut ppu = self.ppu_ref.borrow_mut();
-        ppu.mem_load(addr, data);
-    }
+    //pub fn ppu_mem_write(&mut self, addr: u16, value: u8) {
+    //    //let addr = self.get_ppu_effective_address(addr);
+    //    self.mapper.ppu_write(addr, value)
+    //}
+
+    //pub fn load_rom(&mut self, ines: &InesRom) {
+    //    self.mapper.load_rom(ines, &mut self.cpu_mem, &mut self.ppu_mem);
+    //}
 }

@@ -26,7 +26,7 @@ mod ines;
 use ines::InesRom;
 
 use crate::gui::Gui;
-use crate::mappers::Mapper;
+use crate::mem::Memory;
 mod mappers;
 
 mod gui;
@@ -67,21 +67,24 @@ fn main() {
 
     if cli.rom_info {
         println!("Rom file: {}", rom_path.display());
+        println!("Mapper: {}", ines_file.get_mapper_number());
         println!("{:#?}", ines_file.header);
         println!("sizeof chr-rom: {}", ines_file.chr_rom.len());
         std::process::exit(0);
     }
 
-    let mut mapper = mappers::get_mapper(ines_file.get_mapper_number());
-
-    let ppu = Rc::new(RefCell::new(Ppu::new()));
-    let mut state = NesState::new(Rc::clone(&ppu));
-
-    mapper.load_rom(&mut state, &ines_file);
+    // Init mapper and load rom
+    let mut mapper = mappers::get_mapper(
+        ines_file.get_mapper_number(), Memory::new_cpu(), Memory::new_ppu());
 
     mapper.print_info();
+    mapper.load_rom(&ines_file);
 
-    let mut cpu = Cpu::new(&state);
+    // Init state object
+    let ppu = Rc::new(RefCell::new(Ppu::new()));
+    let mut state = NesState::new(mapper, Rc::clone(&ppu));
+
+    let mut cpu = Cpu::new(&mut state);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -105,7 +108,7 @@ fn main() {
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
     info!("cycle_batch: {}", cycle_batch);
-    info!("reset vector: {:04X}", state.cpu_mem_read_word(0, 0xFFFC));
+    info!("reset vector: {:04X}", state.cpu_mem_read_word(0xFFFC));
 
     let mut gui = Gui::init().unwrap();
 
@@ -128,7 +131,7 @@ fn main() {
 
             for _ in 0..cpu_cyles_used*3 {
             //for _ in 0..3 {
-                let ppu_result = ppu_ref.cycle();
+                let ppu_result = ppu_ref.cycle(&mut state);
                 //println!("PPU: {:?}", ppu_result);
                 match ppu_result {
                     ppu::PpuCycleResult::Idle => (),

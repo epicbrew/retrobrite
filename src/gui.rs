@@ -91,7 +91,11 @@ const PALETTE: [[u8; 3]; 64] = [
 ];
 
 pub struct Gui {
+    // I think we need to keep sdl_context and video subsystem around
+    // so allowing dead_code here.
+    #[allow(dead_code)]
     sdl_context: Sdl,
+    #[allow(dead_code)]
     video_subsystem: VideoSubsystem,
     canvas: Canvas<Window>,
     event_pump: EventPump,
