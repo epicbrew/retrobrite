@@ -1,5 +1,3 @@
-use std::iter::Map;
-
 use super::{Mapper, get_ppu_effective_address};
 use crate::ines::{InesRom, MirroringType};
 use crate::mem::Memory;

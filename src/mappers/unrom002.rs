@@ -40,7 +40,7 @@ impl Mapper for UnromMapper {
         self.cpu_mem.load(0x8000, &self.prg_rom_banks[0]);
         self.cpu_mem.load(0xC000, &self.prg_rom_banks[ines.header.num_prg_rom_chunks - 1]);
 
-        //self.ppu_mem.load(0x0000, &ines.chr_rom);
+        // UNROM have chr ram, so no need to load anything into ppu mem here
 
         self.mirroring = match ines.header.flags6.mirroring {
             MirroringType::Horizontal => MirroringType::Horizontal,
@@ -58,8 +58,8 @@ impl Mapper for UnromMapper {
         }
         else {
             let bank = (value & 0x0F) as usize;
-            println!("bank switch to {}/{}, addr {}, mem val {}",
-                bank, value, addr, self.cpu_mem.read(addr));
+            //println!("bank switch to {}/{}, addr {}, mem val {}",
+            //    bank, value, addr, self.cpu_mem.read(addr));
             self.cpu_mem.load(0x8000, &self.prg_rom_banks[bank]);
         }
     }

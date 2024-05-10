@@ -272,15 +272,15 @@ impl Cpu {
     }
 
     fn do_mem_read_word(&self, state: &mut NesState, addr: u16) -> u16 {
-        let instruction = &Cpu::OP_CODES[self.opcode as usize];
-        let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
+        //let instruction = &Cpu::OP_CODES[self.opcode as usize];
+        //let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
         state.cpu_mem_read_word(addr)
     }
 
     fn do_mem_write(&mut self, state: &mut NesState, addr: u16, value: u8) {
-        let instruction = &Cpu::OP_CODES[self.opcode as usize];
-        let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
+        //let instruction = &Cpu::OP_CODES[self.opcode as usize];
+        //let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
         state.cpu_mem_write(addr, value);
 

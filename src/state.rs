@@ -1,7 +1,4 @@
 use std::{cell::RefCell, rc::Rc};
-use crate::ines::InesRom;
-//pub mod memory;
-use crate::mem::Memory;
 use crate::ppu::Ppu;
 use crate::mappers::Mapper;
 
@@ -105,10 +102,10 @@ impl NesState {
         self.mapper.ppu_read(addr)
     }
 
-    pub fn ppu_mem_write(&mut self, addr: u16, value: u8) {
-        //let addr = self.get_ppu_effective_address(addr);
-        self.mapper.ppu_write(addr, value)
-    }
+    //pub fn ppu_mem_write(&mut self, addr: u16, value: u8) {
+    //    //let addr = self.get_ppu_effective_address(addr);
+    //    self.mapper.ppu_write(addr, value)
+    //}
 
     //pub fn load_rom(&mut self, ines: &InesRom) {
     //    self.mapper.load_rom(ines, &mut self.cpu_mem, &mut self.ppu_mem);

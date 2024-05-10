@@ -34,19 +34,13 @@ impl Memory {
         }
     }
 
-    // Creates 2KB VRAM memory.
-    //pub fn new_vram() -> Self {
-    //    Self {
-    //        mem: vec![0u8; VRAM_MEMORY_SIZE],
-    //    }
-    //}
-
     /// Read an 8-bit value from memory.
     pub fn read(&self, addr: u16) -> u8 {
         self.mem[addr as usize]
     }
 
     /// Read a 16-bit value from memory.
+    #[allow(dead_code)]
     pub fn read_word(&self, addr: u16) -> u16 {
         let addr = addr as usize;
 
