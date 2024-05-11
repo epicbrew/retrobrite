@@ -348,25 +348,13 @@ pub struct Ppu {
     /// PPU Registers.
     reg: PpuRegisters,
 
-    /// Current pointer position into VRAM.
-    //vram_ptr: u16,
-
-    /// PPU memory (vram, etc.)
-    //mem: Memory,
-
     /// Object Attribute Memory
     oam: Memory,
-
-    //ppuaddr_latch: Latch,
 
     /// Reads to 2007 are done via an internal ppu buffer.
     /// A read returns the buffer contents and then the buffer
     /// is loaded with the value at PPUADDR
     ppudata_read_buffer: u8,
-
-    //ppuscroll_latch: Latch,
-    //ppuscroll_x_offset: u8,
-    //ppuscroll_y_offset: u8,
 
     /// Frame counter
     frame: u64,
@@ -385,14 +373,8 @@ impl Ppu {
         Self {
             total_cycle_count: 0,
             reg: PpuRegisters::default(),
-            //vram_ptr: 0,
-            //mem: Memory::new_ppu(),
             oam: Memory::new(OAM_SIZE),
-            //ppuaddr_latch: Latch::Clear,
             ppudata_read_buffer: 0,
-            //ppuscroll_latch: Latch::Clear,
-            //ppuscroll_x_offset: 0,
-            //ppuscroll_y_offset: 0,
             frame: 0,
             scanline: 261, // Start on prerender scanline
             scanline_cycle: 0,
@@ -931,10 +913,6 @@ impl Ppu {
     pub fn oam_dma(&mut self, data: &[u8]) {
         self.oam.load(0, data);
     }
-
-    //pub fn mem_load(&mut self, addr: u16, data: &[u8]) {
-    //    self.mem.load(addr, data);
-    //}
 
     fn get_fine_y_scroll(&self) -> u8 {
         ((self.reg.v & 0x7000) >> 12) as u8
