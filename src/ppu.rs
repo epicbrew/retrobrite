@@ -4,9 +4,7 @@ use crate::mem::Memory;
 use crate::mappers::Mapper;
 
 pub mod constants;
-
-/// Size of Object Attribute Memory.
-const OAM_SIZE: usize = 256;
+use constants::*;
 
 #[derive(Debug)]
 pub enum PpuCycleResult {
@@ -338,6 +336,55 @@ struct PpuBgRenderState {
     attribute_lsb_shift_register: ShiftRegister16Bit,
 }
 
+struct PpuSpriteEvalState {
+    /// During sprite evaluation, keeps track of how many sprites have been
+    /// found to be on the scanline being evaluated. After eight sprites
+    /// have been found, the spite overflow flag logic must be invoked.
+    //num_sprites_on_scanline: u8,
+
+    /// During sprite evaluation this is the current OAM address we
+    /// are reading from.
+    oam_addr: u16,
+
+    /// Secondary Object Attribute Memory (OAM)
+    /// Holds up to 8 OAM entries.
+    secondary_oam: [[u8; 4]; 8],
+
+    /// Index to use for next secondary oam write.
+    secondary_oam_index: usize,
+
+    /// If true, then the first entry in secondary OAM is sprite 0.
+    /// When this flag is true, we need to check for sprite 0 hits.
+    maybe_sprite_0_hit: bool,
+
+    /// If true then sprite overflow has occurred on this scanline.
+    sprite_overflow: bool,
+}
+
+impl Default for PpuSpriteEvalState {
+    fn default() -> Self {
+        Self { 
+            //num_sprites_on_scanline: 0,
+            oam_addr: 0,
+            secondary_oam: [[0xFF; 4]; 8], // Initialize in "cleared" (0xFF) state
+            secondary_oam_index: 0,
+            maybe_sprite_0_hit: false,
+            sprite_overflow: false,
+        }
+    }
+}
+
+impl PpuSpriteEvalState {
+
+    fn reset(&mut self) {
+        //self.num_sprites_on_scanline = 0;
+        self.oam_addr = 0;
+        self.secondary_oam_index = 0;
+        self.maybe_sprite_0_hit = false;
+        self.sprite_overflow = false;
+    }
+}
+
 ///
 /// Picture processing unit.
 /// 
@@ -348,7 +395,7 @@ pub struct Ppu {
     /// PPU Registers.
     reg: PpuRegisters,
 
-    /// Object Attribute Memory
+    /// Object Attribute Memory (OAM)
     oam: Memory,
 
     /// Reads to 2007 are done via an internal ppu buffer.
@@ -365,7 +412,13 @@ pub struct Ppu {
     /// PPU Rendering state, scanline cycle.
     scanline_cycle: u16,
 
+    /// Holds various buffers and variables used during background
+    /// fetching and rendering.
     bg_render_state: PpuBgRenderState,
+
+    /// Hold various buffers and variables used during sprite evaluation
+    /// and rendering.
+    sprite_render_state: PpuSpriteEvalState,
 }
 
 impl Ppu {
@@ -379,6 +432,7 @@ impl Ppu {
             scanline: 261, // Start on prerender scanline
             scanline_cycle: 0,
             bg_render_state: PpuBgRenderState::default(),
+            sprite_render_state: PpuSpriteEvalState::default(),
         }
     }
 
@@ -405,8 +459,93 @@ impl Ppu {
         }
     }
 
+    fn do_sprite_evaluation(&mut self) {
+        match self.scanline {
+            0..=239 => {  // Visible scanlines
+                match self.scanline_cycle {
+                    1..=8 => {
+                        if self.scanline_cycle == 1 {
+                            self.sprite_render_state.reset();
+                        }
+
+                        // This isn't 100% accurate. OAM clear happens across cycles 1..=64,
+                        // reading from OAM on odd cycles and writing to secondary OAM on even.
+                        // We're going to just clear each of the entries in the first
+                        // 8 cycles though. I think this should be fine.
+                        let n = (self.scanline_cycle as usize) - 1;
+                        let secondary_oam = &mut self.sprite_render_state.secondary_oam;
+
+                        secondary_oam[n][0] = 0xFF;
+                        secondary_oam[n][1] = 0xFF;
+                        secondary_oam[n][2] = 0xFF;
+                        secondary_oam[n][3] = 0xFF;
+                    },
+                    65..=256 => {
+                        // Each of the 64 sprites takes 3 cycles to evaluate, we'll pick one
+                        // of those 3 cycles to do all of our work, since we aren't emulating
+                        // read/writes down to the PPU cycle level.
+                        if self.scanline_cycle % 3 == 0 {
+
+                            let min_y = self.scanline + 1;
+                            let max_y = match self.reg.ppu_ctrl.sprite_size {
+                                SpriteSize::Sprite8x8 => self.scanline + 8,
+                                SpriteSize::Sprite8x16 => self.scanline + 16,
+                            };
+
+                            let sprite_y = self.oam.read(self.sprite_render_state.oam_addr) as u16;
+
+                            if sprite_y >= min_y && sprite_y <= max_y {
+                                // In range. Sprite will be on next scanline.
+
+                                if self.sprite_render_state.secondary_oam_index < 8 {
+                                    // If we are at oam addr 0, then this is sprite zero and we have
+                                    // to check for sprite 0 hit when rendering.
+                                    if self.sprite_render_state.oam_addr == 0 {
+                                        self.sprite_render_state.maybe_sprite_0_hit = true;
+                                    }
+
+                                    let secondary_oam = &mut self.sprite_render_state.secondary_oam;
+                                    let i = self.sprite_render_state.secondary_oam_index;
+
+                                    // Copy OAM entry into secondary OAM
+                                    // TODO: Refactor this to grab the entire slice at once.
+                                    secondary_oam[i][0] = self.oam.read(self.sprite_render_state.oam_addr);
+                                    secondary_oam[i][1] = self.oam.read(self.sprite_render_state.oam_addr + 1);
+                                    secondary_oam[i][2] = self.oam.read(self.sprite_render_state.oam_addr + 2);
+                                    secondary_oam[i][3] = self.oam.read(self.sprite_render_state.oam_addr + 3);
+
+                                    self.sprite_render_state.secondary_oam_index += 1;
+                                }
+                                else {
+                                    // TODO: Implement NES's buggy sprite overflow logic.
+                                    self.sprite_render_state.sprite_overflow = true;
+                                }
+                            }
+
+                            // Go to next sprite entry
+                            self.sprite_render_state.oam_addr += 4;
+                        }
+
+                    },
+
+                    257..=320 => {
+                        //if self.scanline_cycle == 257 {
+                        //    println!("found {} sprites on scanline {}", 
+                        //        self.sprite_render_state.secondary_oam_index, self.scanline);
+                        //}
+                    },
+
+                    _ => ()
+                }
+            }
+            _ => ()
+        };
+    }
+
     pub fn cycle(&mut self, state: &mut NesState) -> PpuCycleResult {
         self.total_cycle_count += 1;
+
+        self.do_sprite_evaluation();
 
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
@@ -422,7 +561,8 @@ impl Ppu {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
-                        let pixel = self.render_bg_pixel(state);
+                        let bg_pixel = self.render_bg_pixel(state);
+                        let sprite_pixel = self.render_sprite_pixel(state);
 
                         self.shift_bg_shift_registers();
 
@@ -438,7 +578,7 @@ impl Ppu {
                             self.update_fine_y();
                         }
 
-                        pixel
+                        bg_pixel
                     }
                     257 => {
                         self.reset_horizontal_position_in_v();
@@ -729,12 +869,16 @@ impl Ppu {
         if self.reg.ppu_mask.render_bg {
             let color_index = self.get_bg_color_index(state);
 
-            // scanline_cycle minux one because cycle 0 is an idle cycle, so cycle 1 is
+            // scanline_cycle minus one because cycle 0 is an idle cycle, so cycle 1 is
             // x = 0, etc.
             PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle - 1, color: color_index }
         } else {
             PpuCycleResult::Idle
         }
+    }
+
+    fn render_sprite_pixel(&mut self, state: &mut NesState) -> Option<PpuCycleResult> {
+        None
     }
 
     fn get_bg_color_index(&self, state: &mut NesState) -> u8 {
@@ -812,7 +956,13 @@ impl Ppu {
     }
 
     pub fn read_2004_oamdata(&self) -> u8 {
-        self.oam.read(self.reg.oam_addr as u16)
+        if self.scanline <= 239 &&
+           (self.scanline_cycle >= 1 && self.scanline_cycle <= 64) { 
+            // During secondary OAM clear reading from $2004 always returns 0xFF
+            0xFF
+        } else {
+            self.oam.read(self.reg.oam_addr as u16)
+        }
     }
 
     pub fn write_2004_oamdata(&mut self, value: u8) {

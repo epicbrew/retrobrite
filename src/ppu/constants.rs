@@ -1,4 +1,10 @@
 
+/// Size of Object Attribute Memory.
+pub const OAM_SIZE: usize = 256;
+
+// Size of secondary OAM.
+//pub const SECONDARY_OAM_SIZE: usize = 32;
+
 pub const NAMETABLE_0: u16 = 0x2000;
 pub const NAMETABLE_0_END: u16 = NAMETABLE_0 + 0x03FF;
 
