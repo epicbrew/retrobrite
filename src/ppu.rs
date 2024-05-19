@@ -6,6 +6,9 @@ use crate::mappers::Mapper;
 pub mod constants;
 use constants::*;
 
+mod sprite;
+use sprite::*;
+
 #[derive(Debug)]
 pub enum PpuCycleResult {
     Idle,
@@ -48,12 +51,6 @@ impl Toggle {
             Toggle::SecondWrite => println!("second write"),
         }
     }
-}
-
-#[derive(Default)]
-enum SpriteSize {
-    #[default] Sprite8x8,
-    Sprite8x16,
 }
 
 ///
@@ -336,55 +333,6 @@ struct PpuBgRenderState {
     attribute_lsb_shift_register: ShiftRegister16Bit,
 }
 
-struct PpuSpriteEvalState {
-    /// During sprite evaluation, keeps track of how many sprites have been
-    /// found to be on the scanline being evaluated. After eight sprites
-    /// have been found, the spite overflow flag logic must be invoked.
-    //num_sprites_on_scanline: u8,
-
-    /// During sprite evaluation this is the current OAM address we
-    /// are reading from.
-    oam_addr: u16,
-
-    /// Secondary Object Attribute Memory (OAM)
-    /// Holds up to 8 OAM entries.
-    secondary_oam: [[u8; 4]; 8],
-
-    /// Index to use for next secondary oam write.
-    secondary_oam_index: usize,
-
-    /// If true, then the first entry in secondary OAM is sprite 0.
-    /// When this flag is true, we need to check for sprite 0 hits.
-    maybe_sprite_0_hit: bool,
-
-    /// If true then sprite overflow has occurred on this scanline.
-    sprite_overflow: bool,
-}
-
-impl Default for PpuSpriteEvalState {
-    fn default() -> Self {
-        Self { 
-            //num_sprites_on_scanline: 0,
-            oam_addr: 0,
-            secondary_oam: [[0xFF; 4]; 8], // Initialize in "cleared" (0xFF) state
-            secondary_oam_index: 0,
-            maybe_sprite_0_hit: false,
-            sprite_overflow: false,
-        }
-    }
-}
-
-impl PpuSpriteEvalState {
-
-    fn reset(&mut self) {
-        //self.num_sprites_on_scanline = 0;
-        self.oam_addr = 0;
-        self.secondary_oam_index = 0;
-        self.maybe_sprite_0_hit = false;
-        self.sprite_overflow = false;
-    }
-}
-
 ///
 /// Picture processing unit.
 /// 
@@ -459,7 +407,7 @@ impl Ppu {
         }
     }
 
-    fn do_sprite_evaluation(&mut self) {
+    fn do_sprite_evaluation(&mut self, state: &mut NesState) {
         match self.scanline {
             0..=239 => {  // Visible scanlines
                 match self.scanline_cycle {
@@ -533,6 +481,34 @@ impl Ppu {
                         //    println!("found {} sprites on scanline {}", 
                         //        self.sprite_render_state.secondary_oam_index, self.scanline);
                         //}
+
+                        // We need to load the 8 sprites from secondary oam into our sprite
+                        // buffers for the next scanline. We'll do all of the work for each
+                        // sprite buffer load in one cycle. This is not cycle by cycle accurate.
+                        if self.scanline_cycle % 8 == 0 {
+
+                            // Our first load will happen on cycle 264. 264 / 8 = 33. So, we can
+                            // divide by 8 and subtract 33 to get the secondary oam index to process.
+                            let n = (self.scanline_cycle / 8 - 33) as usize;
+
+                            let y = self.sprite_render_state.secondary_oam[n][0];
+                            let tile = self.sprite_render_state.secondary_oam[n][1];
+                            let attributes = self.sprite_render_state.secondary_oam[n][2];
+                            let x = self.sprite_render_state.secondary_oam[n][3];
+
+                            let is_sprite_0 = self.sprite_render_state.maybe_sprite_0_hit && (n == 0);
+
+                            // Copy sprite size
+                            let sprite_size = match self.reg.ppu_ctrl.sprite_size {
+                                SpriteSize::Sprite8x8 => SpriteSize::Sprite8x8,
+                                SpriteSize::Sprite8x16 => SpriteSize::Sprite8x16,
+                            };
+
+                            self.sprite_render_state.sprite_buffers[n].load(
+                                y, tile, attributes, x, is_sprite_0,
+                                self.reg.ppu_ctrl.sprite_pt_addr_8x8,
+                                sprite_size, self.scanline, state);
+                        }
                     },
 
                     _ => ()
@@ -545,7 +521,7 @@ impl Ppu {
     pub fn cycle(&mut self, state: &mut NesState) -> PpuCycleResult {
         self.total_cycle_count += 1;
 
-        self.do_sprite_evaluation();
+        self.do_sprite_evaluation(state);
 
         let result: PpuCycleResult = match self.scanline {
             0..=239 => {  // Visible scanlines
