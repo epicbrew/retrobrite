@@ -333,6 +333,11 @@ struct PpuBgRenderState {
     attribute_lsb_shift_register: ShiftRegister16Bit,
 }
 
+struct BackgroundPixel {
+    palette_value: u8,
+    color_index: u8,
+}
+
 ///
 /// Picture processing unit.
 /// 
@@ -467,6 +472,9 @@ impl Ppu {
                                 else {
                                     // TODO: Implement NES's buggy sprite overflow logic.
                                     self.sprite_render_state.sprite_overflow = true;
+
+                                    // Set sprite overflow flag
+                                    utils::set_bit(5, &mut self.reg.ppu_status);
                                 }
                             }
 
@@ -537,8 +545,10 @@ impl Ppu {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
 
-                        let bg_pixel = self.render_bg_pixel(state);
-                        let sprite_pixel = self.render_sprite_pixel(state);
+                        //let bg_pixel = self.render_bg_pixel(state);
+                        //let sprite_pixel = self.render_sprite_pixel(state);
+
+                        let render_result = self.render_pixel(state);
 
                         self.shift_bg_shift_registers();
 
@@ -554,7 +564,14 @@ impl Ppu {
                             self.update_fine_y();
                         }
 
-                        bg_pixel
+                        match render_result {
+                            Some(color_index) => PpuCycleResult::Pixel {
+                                scanline: self.scanline,
+                                x: self.scanline_cycle - 1, // -1 because cycle 0 is an idle cycle
+                                color: color_index 
+                            },
+                            None => PpuCycleResult::Idle,
+                        }
                     }
                     257 => {
                         self.reset_horizontal_position_in_v();
@@ -615,7 +632,7 @@ impl Ppu {
                     0 => (),
                     1 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
-                        self.clear_vblank_and_sprite_overflow();
+                        self.clear_ppu_status_flags();
                     },
                     2..=256 => (),
                     257 => {
@@ -840,24 +857,75 @@ impl Ppu {
         }
     }
 
-    fn render_bg_pixel(&mut self, state: &mut NesState) -> PpuCycleResult {
+    //fn render_bg_pixel(&mut self, state: &mut NesState) -> PpuCycleResult {
 
-        if self.reg.ppu_mask.render_bg {
-            let color_index = self.get_bg_color_index(state);
+        //if self.reg.ppu_mask.render_bg {
+        //    let color_index = self.get_bg_color_index(state);
 
-            // scanline_cycle minus one because cycle 0 is an idle cycle, so cycle 1 is
-            // x = 0, etc.
-            PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle - 1, color: color_index }
+        //    // scanline_cycle minus one because cycle 0 is an idle cycle, so cycle 1 is
+        //    // x = 0, etc.
+        //    PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle - 1, color: color_index }
+        //} else {
+        //    PpuCycleResult::Idle
+        //}
+    //}
+
+    fn render_pixel(&mut self, state: &mut NesState) -> Option<u8> {
+
+        // Get background color index
+        let bg_pixel = if self.reg.ppu_mask.render_bg {
+            Some(self.get_bg_color_index(state))
         } else {
-            PpuCycleResult::Idle
+            None
+        };
+
+        let mut sprite_pixel: Option<SpritePixel> = None;
+
+        if self.reg.ppu_mask.render_sprites {
+            for sprite in self.sprite_render_state.sprite_buffers.iter() {
+                // Minus 1 because cycle 0 is an idle cycle
+                let screen_x = (self.scanline_cycle - 1) as u8;
+                let x_diff = screen_x - sprite.x_position();
+
+                if x_diff <= 7 {
+                    let palette_value = sprite.get_palette_value(self.scanline_cycle as u8);
+                    let color_offset = (sprite.palette() << 2) | palette_value;
+
+                    let color_addr: u16 = 0x3F10 + color_offset as u16;
+
+                    let color_index = state.ppu_mem_read(color_addr);
+
+                    sprite_pixel = Some(SpritePixel {
+                        palette_value,
+                        color_index,
+                        priority: sprite.priority(),
+                        sprite_0: sprite.is_sprite_0(),
+                    });
+
+                    break;
+                }
+            }
+        }
+
+        match (bg_pixel, sprite_pixel) {
+            (None, None) => None,
+            (None, Some(spixel)) => Some(spixel.color_index),
+            (Some(bgpixel), None) => Some(bgpixel.color_index),
+            (Some(bgpixel), Some(spixel)) => {
+                if spixel.sprite_0 && bgpixel.palette_value > 0 && spixel.palette_value > 0 {
+                    // Sprite 0 hit
+                    utils::set_bit(6, &mut self.reg.ppu_status);
+                }
+
+                match spixel.priority {
+                    SpriteBgPriority::InFrontOfBackground => Some(spixel.color_index),
+                    SpriteBgPriority::BehindBackground => Some(bgpixel.color_index),
+                }
+            }
         }
     }
 
-    fn render_sprite_pixel(&mut self, state: &mut NesState) -> Option<PpuCycleResult> {
-        None
-    }
-
-    fn get_bg_color_index(&self, state: &mut NesState) -> u8 {
+    fn get_bg_color_index(&self, state: &mut NesState) -> BackgroundPixel {
         let attr_lsb_byte = self.bg_render_state.attribute_lsb_shift_register.get_upper_byte();
         let attr_msb_byte = self.bg_render_state.attribute_msb_shift_register.get_upper_byte();
         let bg_lsb_byte = self.bg_render_state.pattern_tile_lsb_register.get_upper_byte();
@@ -878,11 +946,15 @@ impl Ppu {
 
         let color_addr: u16 = 0x3F00 + color_offset as u16;
 
-        state.ppu_mem_read(color_addr)
+        BackgroundPixel {
+            palette_value: bg_lsb_bit | (bg_msb_bit << 1),
+            color_index: state.ppu_mem_read(color_addr),
+        }
     }
 
-    fn clear_vblank_and_sprite_overflow(&mut self) {
+    fn clear_ppu_status_flags(&mut self) {
         clear_bit(7, &mut self.reg.ppu_status);
+        clear_bit(6, &mut self.reg.ppu_status);
         clear_bit(5, &mut self.reg.ppu_status);
     }
 

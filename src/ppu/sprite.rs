@@ -16,6 +16,14 @@ pub enum SpriteBgPriority {
     BehindBackground,
 }
 
+pub struct SpritePixel {
+    pub(super) palette_value: u8,
+    pub(super) color_index: u8,
+    pub(super) priority: SpriteBgPriority,
+    pub(super) sprite_0: bool,
+}
+
+
 ///
 /// Buffer for sprite data needed for rendering next scanline.
 /// These buffers are initialized from secondary OAM during HBlank.
@@ -81,6 +89,20 @@ impl SpriteBuffer {
         self.set_pattern_lsb_msb(sprite_size, scanline, y, pattern_table_addr_8x8, tile, state);
     }
 
+    /// Gets the value to select from the sprite's palette (i.e. 0, 1, 2, or 3).
+    pub(super) fn get_palette_value(&self, screen_x: u8) -> u8 {
+        let bit = if self.flip_horizontally {
+            screen_x - self.x_position
+        } else {
+            7 - screen_x - self.x_position
+        };
+
+        let lsb = if utils::bit_is_set(bit, self.pattern_tile_lsb) { 1 } else { 0 };
+        let msb = if utils::bit_is_set(bit, self.pattern_tile_msb) { 1 } else { 0 };
+
+        msb << 1 | lsb
+    }
+
     fn set_pattern_lsb_msb(&mut self,
                            sprite_size: SpriteSize,
                            scanline: u16,
@@ -111,6 +133,24 @@ impl SpriteBuffer {
         };
     }
 
+    pub fn x_position(&self) -> u8 {
+        self.x_position
+    }
+
+    pub fn palette(&self) -> u8 {
+        self.palette
+    }
+
+    pub fn priority(&self) -> SpriteBgPriority {
+        match self.priority {
+            SpriteBgPriority::InFrontOfBackground => SpriteBgPriority::InFrontOfBackground,
+            SpriteBgPriority::BehindBackground => SpriteBgPriority::BehindBackground,
+        }
+    }
+
+    pub fn is_sprite_0(&self) -> bool {
+        self.is_sprite_0
+    }
 }
 
 
@@ -148,7 +188,7 @@ impl Default for PpuSpriteEvalState {
     fn default() -> Self {
         let mut sprite_buffers = Vec::new();
 
-        for i in 0..8 {
+        for _ in 0..8 {
             sprite_buffers.push(SpriteBuffer::default());
         }
 

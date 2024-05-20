@@ -10,6 +10,7 @@ const PPU_MEMORY_SIZE: usize = 1024 * 16;
 /// Used for CPU and PPU memory.
 pub struct Memory {
     mem: Vec<u8>,
+    is_ppu: bool,
 }
 
 impl Memory {
@@ -17,6 +18,7 @@ impl Memory {
     pub fn new(size: usize) -> Self {
         Self {
             mem: vec![0u8; size],
+            is_ppu: false,
         }
     }
 
@@ -24,6 +26,7 @@ impl Memory {
     pub fn new_cpu() -> Self {
         Self {
             mem: vec![0u8; CPU_MEMORY_SIZE],
+            is_ppu: false,
         }
     }
 
@@ -31,6 +34,7 @@ impl Memory {
     pub fn new_ppu() -> Self {
         Self {
             mem: vec![0u8; PPU_MEMORY_SIZE],
+            is_ppu: true,
         }
     }
 
@@ -53,7 +57,33 @@ impl Memory {
     /// Write an 8-bit value to memory.
     pub fn write(&mut self, addr: u16, value: u8) {
         //println!("write addr: {:04X}, {}", addr, addr);
-        self.mem[addr as usize] = value;
+
+        if self.is_ppu { // Do ppu palette mirroring
+            match addr {
+                0x3F00 | 0x3F10 => {
+                    self.mem[0x3F00] = value;
+                    self.mem[0x3F10] = value;
+                },
+                0x3F04 | 0x3F14 => {
+                    self.mem[0x3F04] = value;
+                    self.mem[0x3F14] = value;
+                },
+                0x3F08 | 0x3F18 => {
+                    self.mem[0x3F08] = value;
+                    self.mem[0x3F18] = value;
+                },
+                0x3F0C | 0x3F1C => {
+                    self.mem[0x3F0C] = value;
+                    self.mem[0x3F1C] = value;
+                },
+                _ => {
+                    self.mem[addr as usize] = value;
+                }
+            }
+
+        } else {
+            self.mem[addr as usize] = value;
+        }
     }
 
     /// Load a sequence of bytes into memory, starting at addr.
