@@ -439,15 +439,24 @@ impl Ppu {
                         // read/writes down to the PPU cycle level.
                         if self.scanline_cycle % 3 == 0 {
 
-                            let min_y = self.scanline + 1;
-                            let max_y = match self.reg.ppu_ctrl.sprite_size {
-                                SpriteSize::Sprite8x8 => self.scanline + 8,
-                                SpriteSize::Sprite8x16 => self.scanline + 16,
+                            // TODO: evaluate if this should be +1 or not
+                            //let min_y = self.scanline + 1;
+                            //let min_y = self.scanline;
+                            //let max_y = match self.reg.ppu_ctrl.sprite_size {
+                            //    //SpriteSize::Sprite8x8 => self.scanline + 8,
+                            //    //SpriteSize::Sprite8x16 => self.scanline + 16,
+                            //    SpriteSize::Sprite8x8 => self.scanline + 7,
+                            //    SpriteSize::Sprite8x16 => self.scanline + 15,
+                            //};
+
+                            let sprite_min_y = self.oam.read(self.sprite_render_state.oam_addr) as u16;
+                            let sprite_max_y = match self.reg.ppu_ctrl.sprite_size {
+                                SpriteSize::Sprite8x8 => sprite_min_y + 7,
+                                SpriteSize::Sprite8x16 => sprite_min_y + 15,
                             };
 
-                            let sprite_y = self.oam.read(self.sprite_render_state.oam_addr) as u16;
 
-                            if sprite_y >= min_y && sprite_y <= max_y {
+                            if self.scanline >= sprite_min_y && self.scanline <= sprite_max_y {
                                 // In range. Sprite will be on next scanline.
 
                                 if self.sprite_render_state.secondary_oam_index < 8 {
@@ -883,12 +892,17 @@ impl Ppu {
 
         if self.reg.ppu_mask.render_sprites {
             for sprite in self.sprite_render_state.sprite_buffers.iter() {
-                // Minus 1 because cycle 0 is an idle cycle
-                let screen_x = (self.scanline_cycle - 1) as u8;
-                let x_diff = screen_x - sprite.x_position();
+                if !sprite.is_renderable() {
+                    continue;
+                }
 
-                if x_diff <= 7 {
-                    let palette_value = sprite.get_palette_value(self.scanline_cycle as u8);
+                // Minus 1 because cycle 0 is an idle cycle
+                let screen_x = (self.scanline_cycle - 1) as i16;
+                let x_diff = screen_x - (sprite.x_position() as i16);
+
+                if x_diff >= 0 && x_diff <= 7 {
+                    //let palette_value = sprite.get_palette_value(self.scanline_cycle as u8);
+                    let palette_value = sprite.get_palette_value(screen_x as u8);
                     let color_offset = (sprite.palette() << 2) | palette_value;
 
                     let color_addr: u16 = 0x3F10 + color_offset as u16;
@@ -918,7 +932,15 @@ impl Ppu {
                 }
 
                 match spixel.priority {
-                    SpriteBgPriority::InFrontOfBackground => Some(spixel.color_index),
+                    //SpriteBgPriority::InFrontOfBackground => Some(spixel.color_index),
+                    SpriteBgPriority::InFrontOfBackground => {
+                        if spixel.palette_value > 0 {
+                            Some(spixel.color_index)
+                        } else {
+                            // Transparent sprite pixel so show background
+                            Some(bgpixel.color_index)
+                        }
+                    },
                     SpriteBgPriority::BehindBackground => Some(bgpixel.color_index),
                 }
             }
@@ -944,7 +966,12 @@ impl Ppu {
                            at_lsb_bit << 2 |
                            at_msb_bit << 3;
 
-        let color_addr: u16 = 0x3F00 + color_offset as u16;
+        let color_addr: u16 = if bg_lsb_bit == 0 && bg_msb_bit == 0 {
+            // Use universal backdrop color when palette value is 00
+            0x3F00
+        } else {
+            0x3F00 + color_offset as u16
+        };
 
         BackgroundPixel {
             palette_value: bg_lsb_bit | (bg_msb_bit << 1),
@@ -1101,8 +1128,8 @@ impl Ppu {
         } else {
             let value = self.ppudata_read_buffer;
 
-            self.reg.v += self.reg.ppu_ctrl.vram_increment;
             self.ppudata_read_buffer = mapper.ppu_read(self.reg.v);
+            self.reg.v += self.reg.ppu_ctrl.vram_increment;
 
             value
         }

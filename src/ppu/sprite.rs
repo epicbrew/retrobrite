@@ -30,6 +30,10 @@ pub struct SpritePixel {
 ///
 #[derive(Default)]
 pub struct SpriteBuffer {
+    /// True if this buffer contains a sprite at y / x coordinates that will
+    /// appear on screen.
+    is_renderable: bool,
+
     /// X position of left side of sprite.
     x_position: u8,
 
@@ -86,7 +90,13 @@ impl SpriteBuffer {
         self.flip_horizontally = utils::bit_is_set(6, attributes);
         self.flip_vertically = utils::bit_is_set(7, attributes);
 
-        self.set_pattern_lsb_msb(sprite_size, scanline, y, pattern_table_addr_8x8, tile, state);
+        self.is_renderable = y < 240;
+
+        // Don't fetch if not on a visible scanline. This avoids overflow issues when calculating
+        // the tile address when doing scanline - y
+        if self.is_renderable {
+            self.set_pattern_lsb_msb(sprite_size, scanline, y, pattern_table_addr_8x8, tile, state);
+        }
     }
 
     /// Gets the value to select from the sprite's palette (i.e. 0, 1, 2, or 3).
@@ -94,7 +104,7 @@ impl SpriteBuffer {
         let bit = if self.flip_horizontally {
             screen_x - self.x_position
         } else {
-            7 - screen_x - self.x_position
+            7 - (screen_x - self.x_position)
         };
 
         let lsb = if utils::bit_is_set(bit, self.pattern_tile_lsb) { 1 } else { 0 };
@@ -120,7 +130,7 @@ impl SpriteBuffer {
                 };
     
                 let tile_addr = pattern_table_addr_8x8 | ((tile as u16) << 4) | intra_tile_y;
-    
+
                 self.pattern_tile_lsb = state.ppu_mem_read(tile_addr);
     
                 // Or tile_addr with 0x8 to set bit 3 for msb bitplane
@@ -150,6 +160,10 @@ impl SpriteBuffer {
 
     pub fn is_sprite_0(&self) -> bool {
         self.is_sprite_0
+    }
+
+    pub fn is_renderable(&self) -> bool {
+        self.is_renderable
     }
 }
 
