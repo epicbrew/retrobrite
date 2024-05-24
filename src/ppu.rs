@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::state::NesState;
 use crate::utils::{self, bit_is_set, clear_bit, set_bit, set_bits_from_mask_u16};
 use crate::mem::Memory;
@@ -439,22 +441,13 @@ impl Ppu {
                         // read/writes down to the PPU cycle level.
                         if self.scanline_cycle % 3 == 0 {
 
-                            // TODO: evaluate if this should be +1 or not
-                            //let min_y = self.scanline + 1;
-                            //let min_y = self.scanline;
-                            //let max_y = match self.reg.ppu_ctrl.sprite_size {
-                            //    //SpriteSize::Sprite8x8 => self.scanline + 8,
-                            //    //SpriteSize::Sprite8x16 => self.scanline + 16,
-                            //    SpriteSize::Sprite8x8 => self.scanline + 7,
-                            //    SpriteSize::Sprite8x16 => self.scanline + 15,
-                            //};
-
                             let sprite_min_y = self.oam.read(self.sprite_render_state.oam_addr) as u16;
                             let sprite_max_y = match self.reg.ppu_ctrl.sprite_size {
                                 SpriteSize::Sprite8x8 => sprite_min_y + 7,
                                 SpriteSize::Sprite8x16 => sprite_min_y + 15,
                             };
 
+                            // TODO: evaluate if self.scanline should be +1 or not
 
                             if self.scanline >= sprite_min_y && self.scanline <= sprite_max_y {
                                 // In range. Sprite will be on next scanline.
@@ -553,9 +546,6 @@ impl Ppu {
                         if self.scanline_cycle == 1 {
                             self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         }
-
-                        //let bg_pixel = self.render_bg_pixel(state);
-                        //let sprite_pixel = self.render_sprite_pixel(state);
 
                         let render_result = self.render_pixel(state);
 
@@ -866,19 +856,6 @@ impl Ppu {
         }
     }
 
-    //fn render_bg_pixel(&mut self, state: &mut NesState) -> PpuCycleResult {
-
-        //if self.reg.ppu_mask.render_bg {
-        //    let color_index = self.get_bg_color_index(state);
-
-        //    // scanline_cycle minus one because cycle 0 is an idle cycle, so cycle 1 is
-        //    // x = 0, etc.
-        //    PpuCycleResult::Pixel { scanline: self.scanline, x: self.scanline_cycle - 1, color: color_index }
-        //} else {
-        //    PpuCycleResult::Idle
-        //}
-    //}
-
     fn render_pixel(&mut self, state: &mut NesState) -> Option<u8> {
 
         // Get background color index
@@ -888,7 +865,9 @@ impl Ppu {
             None
         };
 
-        let mut sprite_pixel: Option<SpritePixel> = None;
+        //let mut sprite_pixel: Option<SpritePixel> = None;
+
+        let mut sprite_vec = Vec::new();
 
         if self.reg.ppu_mask.render_sprites {
             for sprite in self.sprite_render_state.sprite_buffers.iter() {
@@ -909,7 +888,14 @@ impl Ppu {
 
                     let color_index = state.ppu_mem_read(color_addr);
 
-                    sprite_pixel = Some(SpritePixel {
+                    //sprite_pixel = Some(SpritePixel {
+                    //    palette_value,
+                    //    color_index,
+                    //    priority: sprite.priority(),
+                    //    sprite_0: sprite.is_sprite_0(),
+                    //});
+
+                    sprite_vec.push(SpritePixel {
                         palette_value,
                         color_index,
                         priority: sprite.priority(),
@@ -920,6 +906,26 @@ impl Ppu {
                 }
             }
         }
+
+        // TODO: This doesn't seem to work quite right.
+        // Determine which sprite pixel to attempt to render. If sprites are on top
+        // of each other we should pick the highest priority non-transparent sprite
+        // pixel.
+        let sprite_pixel = if sprite_vec.is_empty() {
+            None
+        } else {
+            let mut pixel_to_render = sprite_vec.pop().unwrap();
+
+            while !sprite_vec.is_empty() {
+                let candidate = sprite_vec.pop().unwrap();
+
+                if candidate.palette_value > 0 {
+                    pixel_to_render = candidate;
+                }
+            }
+
+            Some(pixel_to_render)
+        };
 
         match (bg_pixel, sprite_pixel) {
             (None, None) => None,
@@ -932,7 +938,6 @@ impl Ppu {
                 }
 
                 match spixel.priority {
-                    //SpriteBgPriority::InFrontOfBackground => Some(spixel.color_index),
                     SpriteBgPriority::InFrontOfBackground => {
                         if spixel.palette_value > 0 {
                             Some(spixel.color_index)

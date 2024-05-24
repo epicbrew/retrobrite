@@ -139,6 +139,36 @@ impl SpriteBuffer {
             },
             SpriteSize::Sprite8x16 => {
                 todo!();
+                let mut intra_tile_y = if self.flip_vertically {
+                    15 - (scanline - (y as u16))
+                } else {
+                    scanline - (y as u16)
+                };
+
+                let tile_index = if self.flip_vertically {
+                    if intra_tile_y > 7 { 0 } else { 1 }
+
+                } else {
+                    if intra_tile_y > 7 { 1 } else { 0 }
+                };
+
+                intra_tile_y = intra_tile_y % 8; // Maybe?
+
+                let pattern_table_addr = if utils::bit_is_set(0, tile) {
+                    0x0000
+                } else {
+                    0x1000
+                };
+
+                // Clear pattern table selection bit and add tile index to get tile number
+                let tile_number = (tile & 0xFE) + tile_index;
+
+                let tile_addr = pattern_table_addr | ((tile_number as u16) << 4) | intra_tile_y;
+
+                self.pattern_tile_lsb = state.ppu_mem_read(tile_addr);
+    
+                // Or tile_addr with 0x8 to set bit 3 for msb bitplane
+                self.pattern_tile_msb = state.ppu_mem_read(tile_addr | 0x8);
             }
         };
     }
