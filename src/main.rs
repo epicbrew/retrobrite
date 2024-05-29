@@ -161,7 +161,7 @@ fn main() {
         cycles_this_second += cycles_this_frame;
         frame_count += 1;
 
-        if gui.process_events() == false {
+        if gui.process_events(&mut state) == false {
             break 'mainloop;
         }
         
