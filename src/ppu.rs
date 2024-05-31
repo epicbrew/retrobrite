@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use crate::state::NesState;
 use crate::utils::{self, bit_is_set, clear_bit, set_bit, set_bits_from_mask_u16};
 use crate::mem::Memory;
@@ -946,7 +944,15 @@ impl Ppu {
                             Some(bgpixel.color_index)
                         }
                     },
-                    SpriteBgPriority::BehindBackground => Some(bgpixel.color_index),
+                    SpriteBgPriority::BehindBackground => { 
+                        //Some(bgpixel.color_index)
+
+                        if bgpixel.palette_value > 0 {
+                            Some(bgpixel.color_index)
+                        } else {
+                            Some(spixel.color_index)
+                        }
+                    }
                 }
             }
         }

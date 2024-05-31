@@ -1,6 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 use crate::ppu::Ppu;
 use crate::mappers::Mapper;
+use crate::utils;
 
 ///
 /// Manages reads/writes to cpu and ppu memory, properly delegating calls to
@@ -9,6 +10,33 @@ use crate::mappers::Mapper;
 pub struct NesState {
     mapper: Box<dyn Mapper>,
     ppu_ref: Rc<RefCell<Ppu>>,
+
+    /// Controller shift register strobe state. If true we will accept controller
+    /// state updates from the UI. If false the program is in the process of reading
+    /// the controllers and we shouldn't reload the state.
+    reload_controller_state: bool,
+
+    /// Last received input state from the UI.
+    controller1_state: u8,
+
+    /// Shift register contents for controller 1
+    controller1_register: u8,
+
+    /// Read count since $4016 strobe was set to 0. We will return 1 for
+    /// any shift register reads after the first eight until the strobe is
+    /// reset.
+    controller1_read_count: u16,
+
+    /// Last received input state from the UI.
+    controller2_state: u8,
+
+    /// Shift register contents for controller 2
+    controller2_register: u8,
+
+    /// Read count since $4016 strobe was set to 0. We will return 1 for
+    /// any shift register reads after the first eight until the strobe is
+    /// reset.
+    controller2_read_count: u16,
 }
 
 impl NesState {
@@ -16,6 +44,13 @@ impl NesState {
         Self {
             mapper,
             ppu_ref,
+            reload_controller_state: true,
+            controller1_state: 0,
+            controller1_register: 0,
+            controller1_read_count: 0,
+            controller2_state: 0,
+            controller2_register: 0,
+            controller2_read_count: 0,
         }
     }
 
@@ -44,6 +79,8 @@ impl NesState {
             0x2007 => {
                 self.ppu_ref.borrow_mut().read_2007_ppudata(&mut self.mapper)
             },
+            0x4016 => self.read_controller1(),
+            0x4017 => self.read_controller2(),
             _ => self.mapper.cpu_read(addr)
         };
 
@@ -81,6 +118,7 @@ impl NesState {
                 let mut ppu = self.ppu_ref.borrow_mut();
                 ppu.oam_dma(dma_slice);
             },
+            0x4016 => self.handle_controller_strobe(value),
             _ => self.mapper.cpu_write(addr, value),
         }
     }
@@ -110,4 +148,54 @@ impl NesState {
     //pub fn load_rom(&mut self, ines: &InesRom) {
     //    self.mapper.load_rom(ines, &mut self.cpu_mem, &mut self.ppu_mem);
     //}
+
+    pub fn handle_controller_strobe(&mut self, value_written: u8) {
+        if utils::bit_is_set(0, value_written) {
+            self.reload_controller_state = true;
+        }
+        else {
+            //println!("setting controller state (strobe low)");
+            self.reload_controller_state = false;
+
+            self.controller1_register = self.controller1_state;
+            self.controller1_read_count = 0;
+
+            self.controller2_register = self.controller2_state;
+            self.controller2_read_count = 0;
+
+        }
+    }
+
+    pub fn set_controller1_state(&mut self, controller_state: u8) {
+        self.controller1_state = controller_state;
+    }
+
+    pub fn set_controller2_state(&mut self, controller_state: u8) {
+        self.controller2_state = controller_state;
+    }
+
+    fn read_controller1(&mut self) -> u8 {
+        self.controller1_read_count += 1;
+
+        if self.controller1_read_count > 8 {
+            0x41 // Return 1 state (0x41 to account for previous bus contents)
+        } else {
+            //println!("reading controller 1: {:02X}", self.controller1_register);
+            let button_value = self.controller1_register & 0x1;
+            self.controller1_register = self.controller1_register >> 1;
+            0x40 | button_value
+        }
+    }
+
+    fn read_controller2(&mut self) -> u8 {
+        self.controller2_read_count += 1;
+
+        if self.controller2_read_count > 8 {
+            0x41 // Return 1 state (0x41 to account for previous bus contents)
+        } else {
+            let button_value = self.controller2_register & 0x1;
+            self.controller2_register >>= 1;
+            0x40 | button_value
+        }
+    }
 }

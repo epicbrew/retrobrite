@@ -5,6 +5,8 @@ use sdl2::render::Canvas;
 use sdl2::surface::Surface;
 use sdl2::pixels::PixelFormatEnum;
 
+use crate::state::NesState;
+
 /// NES resolution width
 const WIDTH: u32 = 256;
 
@@ -90,6 +92,16 @@ const PALETTE: [[u8; 3]; 64] = [
         [0x00, 0x00, 0x00],
 ];
 
+/// Button masks
+const A_BUTTON_MASK: u8 = 1;
+const B_BUTTON_MASK: u8 = 2;
+const SELECT_BUTTON_MASK: u8 = 4;
+const START_BUTTON_MASK: u8 = 8;
+const UP_BUTTON_MASK: u8 = 16;
+const DOWN_BUTTON_MASK: u8 = 32;
+const LEFT_BUTTON_MASK: u8 = 64;
+const RIGHT_BUTTON_MASK: u8 = 128;
+
 pub struct Gui {
     // I think we need to keep sdl_context and video subsystem around
     // so allowing dead_code here.
@@ -100,6 +112,8 @@ pub struct Gui {
     canvas: Canvas<Window>,
     event_pump: EventPump,
     frame_buffer: [u8; FRAME_BUFFER_SIZE_IN_BYTES],
+    controller1_state: u8,
+    controller2_state: u8,
 }
 
 impl Gui {
@@ -123,6 +137,8 @@ impl Gui {
                 canvas,
                 event_pump,
                 frame_buffer: [0; FRAME_BUFFER_SIZE_IN_BYTES],
+                controller1_state: 0,
+                controller2_state: 0,
             }
         )
     }
@@ -163,17 +179,91 @@ impl Gui {
         self.canvas.present();
     }
 
-    pub fn process_events(&mut self) -> bool {
+    pub fn process_events(&mut self, state: &mut NesState) -> bool {
         let mut result = true;
         for event in self.event_pump.poll_iter() {
             match event {
-                Event::Quit {..} |
-                Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
+                Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     result = false;
+                },
+                Event::KeyDown { keycode: key, .. } => {
+                    let code = key.unwrap();
+
+                    match code {
+                        Keycode::A => {
+                            self.controller1_state |= A_BUTTON_MASK;
+                        },
+                        Keycode::S => {
+                            self.controller1_state |= B_BUTTON_MASK;
+                        },
+                        Keycode::D => {
+                            self.controller1_state |= SELECT_BUTTON_MASK;
+                        },
+                        Keycode::F => {
+                            self.controller1_state |= START_BUTTON_MASK;
+                        },
+                        Keycode::Up => {
+                            self.controller1_state |= UP_BUTTON_MASK;
+                        },
+                        Keycode::Down => {
+                            self.controller1_state |= DOWN_BUTTON_MASK;
+                        },
+                        Keycode::Left => {
+                            self.controller1_state |= LEFT_BUTTON_MASK;
+                        },
+                        Keycode::Right => {
+                            self.controller1_state |= RIGHT_BUTTON_MASK;
+                        },
+                        _ => ()
+                    }
+
+                    //println!("pressed key: {}", code);
+                    //if matches!(code, Keycode::A) {
+                    //    println!("found: A!!!");
+                    //}
+                },
+                Event::KeyUp { keycode: key, .. } => {
+                    let code = key.unwrap();
+
+                    match code {
+                        Keycode::A => {
+                            self.controller1_state &= !A_BUTTON_MASK;
+                        },
+                        Keycode::S => {
+                            self.controller1_state &= !B_BUTTON_MASK;
+                        },
+                        Keycode::D => {
+                            self.controller1_state &= !SELECT_BUTTON_MASK;
+                        },
+                        Keycode::F => {
+                            self.controller1_state &= !START_BUTTON_MASK;
+                        },
+                        Keycode::Up => {
+                            self.controller1_state &= !UP_BUTTON_MASK;
+                        },
+                        Keycode::Down => {
+                            self.controller1_state &= !DOWN_BUTTON_MASK;
+                        },
+                        Keycode::Left => {
+                            self.controller1_state &= !LEFT_BUTTON_MASK;
+                        },
+                        Keycode::Right => {
+                            self.controller1_state &= !RIGHT_BUTTON_MASK;
+                        },
+                        _ => ()
+                    }
+
+                    //println!("released key: {}", code);
+                    //if matches!(code, Keycode::A) {
+                    //    println!("found: A!!!");
+                    //}
                 },
                 _ => {}
             }
         }
+
+        state.set_controller1_state(self.controller1_state);
+        state.set_controller2_state(self.controller2_state);
 
         result
     }
