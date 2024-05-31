@@ -1,4 +1,3 @@
-use sdl2::sys::KeyCode;
 use sdl2::{video::Window, EventPump, Sdl, VideoSubsystem};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -198,10 +197,10 @@ impl Gui {
                             self.controller1_state |= B_BUTTON_MASK;
                         },
                         Keycode::D => {
-                            self.controller1_state |= START_BUTTON_MASK;
+                            self.controller1_state |= SELECT_BUTTON_MASK;
                         },
                         Keycode::F => {
-                            self.controller1_state |= SELECT_BUTTON_MASK;
+                            self.controller1_state |= START_BUTTON_MASK;
                         },
                         Keycode::Up => {
                             self.controller1_state |= UP_BUTTON_MASK;
@@ -234,10 +233,10 @@ impl Gui {
                             self.controller1_state &= !B_BUTTON_MASK;
                         },
                         Keycode::D => {
-                            self.controller1_state &= !START_BUTTON_MASK;
+                            self.controller1_state &= !SELECT_BUTTON_MASK;
                         },
                         Keycode::F => {
-                            self.controller1_state &= !SELECT_BUTTON_MASK;
+                            self.controller1_state &= !START_BUTTON_MASK;
                         },
                         Keycode::Up => {
                             self.controller1_state &= !UP_BUTTON_MASK;
