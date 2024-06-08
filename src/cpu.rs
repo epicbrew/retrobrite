@@ -117,8 +117,8 @@ impl Cpu {
         new_self.reg.Y = 0;
         new_self.reg.PC = state.cpu_mem_read_word(0xFFFC);
         new_self.reg.SP = 0xFD;
-        new_self.reg.P = 0x24;
-        //new_self.reg.P = 0x04; // Not 100% sure what the correct value here is (0x24?)
+        new_self.reg.P = 0x24; // Matches nestest
+        //new_self.reg.P = 0x04; // Matches Mesen debug
 
         new_self
     }
