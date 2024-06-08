@@ -900,7 +900,7 @@ impl Ppu {
                         sprite_0: sprite.is_sprite_0(),
                     });
 
-                    break;
+                    //break;
                 }
             }
         }
@@ -909,6 +909,9 @@ impl Ppu {
         // Determine which sprite pixel to attempt to render. If sprites are on top
         // of each other we should pick the highest priority non-transparent sprite
         // pixel.
+        //if sprite_vec.len() > 1 {
+        //    println!("Overlapping sprites: {}", sprite_vec.len());
+        //}
         let sprite_pixel = if sprite_vec.is_empty() {
             None
         } else {
@@ -945,12 +948,15 @@ impl Ppu {
                         }
                     },
                     SpriteBgPriority::BehindBackground => { 
-                        //Some(bgpixel.color_index)
-
                         if bgpixel.palette_value > 0 {
                             Some(bgpixel.color_index)
                         } else {
-                            Some(spixel.color_index)
+                            if spixel.palette_value > 0 {
+                                Some(spixel.color_index)
+                            } else {
+                                // Transparent sprite pixel so show background
+                                Some(bgpixel.color_index)
+                            }
                         }
                     }
                 }
