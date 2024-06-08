@@ -10,6 +10,7 @@ pub struct NromMapper {
     cpu_mem: Memory,
     ppu_mem: Memory,
     mirroring: MirroringType,
+    chr_ram: bool,
 }
 
 pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
@@ -18,8 +19,8 @@ pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
         number: 0,
         cpu_mem,
         ppu_mem,
-        mirroring: MirroringType::Horizontal
-
+        mirroring: MirroringType::Horizontal,
+        chr_ram: false,
     }
 }
 
@@ -45,11 +46,13 @@ impl Mapper for NromMapper {
             self.cpu_mem.load(0xC000, &ines.prg_rom[1]);
         }
 
-        if ines.header.num_chr_rom_chunks != 1 {
-            panic!("nrom: invalid number of chr rom chunks");
+        match ines.header.num_chr_rom_chunks {
+            0 => self.chr_ram = true,
+            1 => self.ppu_mem.load(0x0000, &ines.chr_rom[0]),
+            _ => {
+                panic!("nrom: invalid number of chr rom chunks: {}", ines.header.num_chr_rom_chunks);
+            }
         }
-
-        self.ppu_mem.load(0x0000, &ines.chr_rom[0]);
 
         self.mirroring = match ines.header.flags6.mirroring {
             MirroringType::Horizontal => MirroringType::Horizontal,
@@ -81,7 +84,13 @@ impl Mapper for NromMapper {
         let addr = get_ppu_effective_address(addr);
 
         match addr {
-            0x0000..=0x1FFF => (), // Cannot overwrite pattern table ROM
+            0x0000..=0x1FFF => {
+                if self.chr_ram {
+                    println!("writing chr ram value {:02X}", value);
+                    self.ppu_mem.write(addr, value);
+                }
+                // Otherwise, cannot overwrite pattern table ROM
+            }, 
             NAMETABLE_0..=NAMETABLE_3_END => {
                 let mirrored_address = self.get_mirrored_address(addr);
                 self.ppu_mem.write(addr, value);
