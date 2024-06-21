@@ -618,6 +618,7 @@ impl Ppu {
                     self.set_vblank_flag();
                     let do_nmi = self.reg.ppu_ctrl.generate_nmi;
                     //let do_nmi = true;
+                    //println!("241,1: nmi flag {do_nmi}");
                     PpuCycleResult::VBlankLine { trigger_nmi: do_nmi, scanline: self.scanline }
                 } else {
                     PpuCycleResult::VBlankLine { trigger_nmi: false, scanline: self.scanline }
@@ -990,6 +991,8 @@ impl Ppu {
             0x3F00 + color_offset as u16
         };
 
+        //println!("bg color addr: {color_addr:04X}");
+
         BackgroundPixel {
             palette_value: bg_lsb_bit | (bg_msb_bit << 1),
             color_index: state.ppu_mem_read(color_addr),
@@ -1013,6 +1016,8 @@ impl Ppu {
         }
 
         self.reg.ppu_ctrl.update(value);
+
+        //println!("PPUCTRL: {},{} generate nmi {}", self.scanline, self.scanline_cycle, self.reg.ppu_ctrl.generate_nmi);
 
         // Write nametable selection bits to t
         let nt_bits = (value as u16) << 10; 

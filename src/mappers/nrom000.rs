@@ -86,7 +86,6 @@ impl Mapper for NromMapper {
         match addr {
             0x0000..=0x1FFF => {
                 if self.chr_ram {
-                    println!("writing chr ram value {:02X}", value);
                     self.ppu_mem.write(addr, value);
                 }
                 // Otherwise, cannot overwrite pattern table ROM

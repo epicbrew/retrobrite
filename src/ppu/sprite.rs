@@ -138,32 +138,31 @@ impl SpriteBuffer {
     
             },
             SpriteSize::Sprite8x16 => {
-                todo!();
                 let mut intra_tile_y = if self.flip_vertically {
                     15 - (scanline - (y as u16))
                 } else {
                     scanline - (y as u16)
                 };
 
-                let tile_index = if self.flip_vertically {
-                    if intra_tile_y > 7 { 0 } else { 1 }
+                // 0 if y value indicates first 8x8 tile 1 if second 8x8 tile
+                let tile_index = if intra_tile_y > 7 { 1 } else { 0 };
 
-                } else {
-                    if intra_tile_y > 7 { 1 } else { 0 }
-                };
+                intra_tile_y = intra_tile_y % 8;
 
-                intra_tile_y = intra_tile_y % 8; // Maybe?
-
-                let pattern_table_addr = if utils::bit_is_set(0, tile) {
+                let pattern_table_base = if tile % 2 == 0 {
                     0x0000
                 } else {
                     0x1000
                 };
 
-                // Clear pattern table selection bit and add tile index to get tile number
-                let tile_number = (tile & 0xFE) + tile_index;
+                // Shift away pattern table selection bit and multiply resulting tile number
+                // by 32, because each 8x16 sprite takes up 32 bytes in memory (16 bytes per
+                // 8x8 tile) 
+                let tile_offset = ((tile as u16) >> 1) * 32;
 
-                let tile_addr = pattern_table_addr | ((tile_number as u16) << 4) | intra_tile_y;
+                // tile_index * 16 selects first or second set of 16 bytes for first or second
+                // 8x8 tile, then add in intra_tile_y.
+                let tile_addr = pattern_table_base + tile_offset + (tile_index * 16) + intra_tile_y;
 
                 self.pattern_tile_lsb = state.ppu_mem_read(tile_addr);
     

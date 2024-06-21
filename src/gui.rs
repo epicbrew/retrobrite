@@ -149,6 +149,8 @@ impl Gui {
             return;
         }
 
+        //println!("pixel value {}", value);
+
         // Skip overscan lines at the bottom of the screen that would be out
         // of range of our frame buffer.
         if y - TOP_OVERSCAN >= HEIGHT as u16 {
