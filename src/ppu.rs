@@ -1158,7 +1158,7 @@ impl Ppu {
     }
 
     pub fn oam_dma(&mut self, data: &[u8]) {
-        self.oam.load(0, data);
+        self.oam.wrapping_load(self.reg.oam_addr as u16, data);
     }
 
     fn get_fine_y_scroll(&self) -> u8 {

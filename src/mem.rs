@@ -98,6 +98,19 @@ impl Memory {
         }
     }
 
+    pub fn wrapping_load(&mut self, addr: u16, data: &[u8]) {
+        let mut location = addr as usize;
+        for value in data.iter() {
+            self.mem[location] = *value;
+
+            location += 1;
+
+            if location == self.mem.len() {
+                location = 0;
+            }
+        }
+    }
+
     pub fn get_slice(&self, start_addr: u16, size: usize) -> &[u8] {
         let start = start_addr as usize;
         let end = start + size;
