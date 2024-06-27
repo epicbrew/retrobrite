@@ -57,7 +57,6 @@ impl Toggle {
 /// PPUCTRL fields. This struct receives the raw value written to PPUCTRL
 /// and parses the value into fields.
 ///
-#[derive(Default)]
 struct PpuCtrl {
     /// Raw value written via $2000
     value: u8,
@@ -67,6 +66,27 @@ struct PpuCtrl {
     bg_pt_addr: u16,
     sprite_size: SpriteSize,
     generate_nmi: bool
+}
+
+// Ensure that PpuCtrl register object is initialized properly. The program
+// may choose not to write to it on startup so we have to make sure we call
+// ppu_ctrl.update(0) to fill the fields in this object properly for construction.
+impl Default for PpuCtrl {
+    fn default() -> Self {
+        let mut ppu_ctrl = Self { 
+            value: 0,
+            base_nt_addr: 0,
+            vram_increment: 0,
+            sprite_pt_addr_8x8: 0,
+            bg_pt_addr: 0,
+            sprite_size: SpriteSize::Sprite8x8,
+            generate_nmi: false,
+        };
+
+        ppu_ctrl.update(0x0);
+
+        ppu_ctrl
+    }
 }
 
 impl PpuCtrl {
