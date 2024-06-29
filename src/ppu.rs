@@ -884,8 +884,6 @@ impl Ppu {
             None
         };
 
-        //let mut sprite_pixel: Option<SpritePixel> = None;
-
         let mut sprite_vec = Vec::new();
 
         if self.reg.ppu_mask.render_sprites {
@@ -899,7 +897,6 @@ impl Ppu {
                 let x_diff = screen_x - (sprite.x_position() as i16);
 
                 if x_diff >= 0 && x_diff <= 7 {
-                    //let palette_value = sprite.get_palette_value(self.scanline_cycle as u8);
                     let palette_value = sprite.get_palette_value(screen_x as u8);
                     let color_offset = (sprite.palette() << 2) | palette_value;
 
@@ -907,32 +904,20 @@ impl Ppu {
 
                     let color_index = state.ppu_mem_read(color_addr);
 
-                    //sprite_pixel = Some(SpritePixel {
-                    //    palette_value,
-                    //    color_index,
-                    //    priority: sprite.priority(),
-                    //    sprite_0: sprite.is_sprite_0(),
-                    //});
-
                     sprite_vec.push(SpritePixel {
                         palette_value,
                         color_index,
                         priority: sprite.priority(),
                         sprite_0: sprite.is_sprite_0(),
                     });
-
-                    //break;
                 }
             }
         }
 
-        // TODO: This doesn't seem to work quite right.
+        // TODO: Merge this logic with the loop above.
         // Determine which sprite pixel to attempt to render. If sprites are on top
         // of each other we should pick the highest priority non-transparent sprite
         // pixel.
-        //if sprite_vec.len() > 1 {
-        //    println!("Overlapping sprites: {}", sprite_vec.len());
-        //}
         let sprite_pixel = if sprite_vec.is_empty() {
             None
         } else {
