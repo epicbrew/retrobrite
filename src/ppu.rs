@@ -16,7 +16,7 @@ pub enum PpuCycleResult {
     HBlank {scanline: u16, cycle: u16},
     PostRenderLine,
     VBlankLine {trigger_nmi: bool, scanline: u16},
-    PreRenderLine,
+    PreRenderLine {scanline_cycle: u16 },
 }
 
 // Latch for ppuaddr, ppuscroll, etc.
@@ -691,7 +691,7 @@ impl Ppu {
                     _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
                 };
 
-                PpuCycleResult::PreRenderLine
+                PpuCycleResult::PreRenderLine{ scanline_cycle: self.scanline_cycle }
             },
             _ => panic!("Invalid scanline: {}", self.scanline)
         };

@@ -94,11 +94,14 @@ pub struct Cpu {
 
     /// Flag signaling NMI interupt was triggered
     nmi_flag: bool,
+
+    /// Trace cpu execution via logging messages.
+    trace_cpu: bool,
 }
 
 impl Cpu {
 
-    pub fn new(state: &mut NesState) -> Self {
+    pub fn new(state: &mut NesState, trace_cpu: bool) -> Self {
         let mut new_self = Self {
             reg: Registers::default(),
             //mem,
@@ -110,6 +113,7 @@ impl Cpu {
             cycle_count: 7,
             bytes_consumed: Vec::new(),
             nmi_flag: false,
+            trace_cpu,
         };
 
         new_self.reg.A = 0;
@@ -151,24 +155,25 @@ impl Cpu {
     /// cycles used by the last instruction.
     /// 
     pub fn cycle_to(&mut self, state: &mut NesState, cycle: u64) -> u64 {
-        let mut cpu_cycles_used = 0;
+        let mut instruction_cycles = 0; 
         let interupt_cycles = self.handle_interupts(state);
 
         self.cycle_count += interupt_cycles;
 
         while self.cycle_count < cycle {
-            cpu_cycles_used = self.execute(state);
+            let cpu_cycles_used = self.execute(state);
             self.cycle_count += cpu_cycles_used;
+            instruction_cycles += cpu_cycles_used;
         }
 
-        interupt_cycles + cpu_cycles_used
+        interupt_cycles + instruction_cycles
     }
 
     fn handle_interupts(&mut self, state: &mut NesState) -> u64 {
         let mut interupt_cycles = 0;
 
         if self.nmi_flag {
-            debug!("\n\nTRIGGERING NMI!\n\n");
+            //debug!("\n\nTRIGGERING NMI!\n\n");
             // Reset flag so we don't process this NMI again next cycle
             self.nmi_flag = false;
 
@@ -209,7 +214,9 @@ impl Cpu {
         self.extra_cycles = 0;
         self.set_operand_address(state, &instruction.addr_mode);
 
-        self.print_log_line(instruction, instruction_address);
+        if self.trace_cpu {
+            self.print_log_line(instruction, instruction_address);
+        }
 
         // Execute 
         (instruction.func)(self, state);
@@ -254,7 +261,8 @@ impl Cpu {
 
         log_line.push_str(&register_status);
 
-        debug!("{}", log_line);
+        //debug!("{}", log_line);
+        println!("{}", log_line);
     }
 
     ///
@@ -1394,6 +1402,7 @@ mod tests {
                 cycle_count: 0,
                 bytes_consumed: Vec::new(),
                 nmi_flag: false,
+                trace_cpu: false,
             }
         }
     }
@@ -1424,7 +1433,7 @@ mod tests {
     #[test]
     fn test_cpu_read_byte() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mut state);
+        let mut cpu = Cpu::new(&mut state, false);
 
         //let pc = 0x400; // address 1024 in decimal, page 4
         cpu.reg.PC = 0x400; // address 1024 in decimal, page 4 
@@ -1441,7 +1450,7 @@ mod tests {
         let pc = 0x2f0; // page 2
 
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mut state);
+        let mut cpu = Cpu::new(&mut state, false);
 
         cpu.reg.PC = pc;
 
@@ -1453,7 +1462,7 @@ mod tests {
     #[test]
     fn test_fetch_operand_imm() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mut state);
+        let mut cpu = Cpu::new(&mut state, false);
         cpu.reg.PC = 0x501;
 
         cpu.set_operand_address(&mut state, &AddrMode::IMM);
@@ -1463,7 +1472,7 @@ mod tests {
     #[test]
     fn test_fetch_operand_abs() {
         let mut state = get_state_with_cpu_mem_ramp();
-        let mut cpu = Cpu::new(&mut state);
+        let mut cpu = Cpu::new(&mut state, false);
         cpu.reg.PC = 0xff02;
         cpu.opcode = OPCODE_ORA_ABS;
 

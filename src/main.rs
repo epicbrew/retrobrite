@@ -52,9 +52,18 @@ struct Cli {
     #[arg(long, short)]
     cycles: Option<u64>,
 
+    /// Number of CPU cycles to run at a time.
+    /// Not recommended to change from default.
+    #[arg(long, short('b'))]
+    cycle_batch: Option<u64>,
+
     /// Print information about a ROM and exit.
     #[arg(long, short('i'))]
     rom_info: bool,
+
+    /// Enable trace logging of CPU execution.
+    #[arg(long)]
+    trace_cpu: bool,
 }
 
 fn main() {
@@ -84,7 +93,7 @@ fn main() {
     let ppu = Rc::new(RefCell::new(Ppu::new()));
     let mut state = NesState::new(mapper, Rc::clone(&ppu));
 
-    let mut cpu = Cpu::new(&mut state);
+    let mut cpu = Cpu::new(&mut state, cli.trace_cpu);
 
     let max_cycles = if let Some(cycles_to_run) = cli.cycles.as_ref() {
         *cycles_to_run
@@ -96,14 +105,19 @@ fn main() {
         cpu.set_program_counter(*pc);
     }
 
-    let cycle_batch = CPU_CYCLES_PER_FRAME;
+    let cycle_batch = if let Some(cycle_batch_option) = cli.cycle_batch.as_ref() {
+        *cycle_batch_option
+    } else {
+        1
+    };
     let mut cycle = 7;
     let mut cycles_this_second = 0;
     let mut last_report = Instant::now();
 
-    let frame_duration = Duration::from_nanos(cycle_batch * NS_PER_CYCLE);
+    let mut frame_start = Instant::now();
+    let frame_duration = Duration::from_nanos(CPU_CYCLES_PER_FRAME * NS_PER_CYCLE);
     let mut frame_count: u64 = 0;
-    let mut last_report_frame_count = frame_count;
+    let mut fps: u32 = 0;
 
     info!("CPU FREQ: {}", CPU_FREQ);
     info!("ns per cycle: {}", NS_PER_CYCLE);
@@ -113,75 +127,70 @@ fn main() {
     let mut gui = Gui::init().unwrap();
 
     'mainloop: loop {
-        let mut cycles_this_frame: u64 = 0;
 
-        let frame_start = Instant::now();
+        cycle += cycle_batch;
 
-        while cycles_this_frame < cycle_batch {
-            cycle += 1;
-
-            // Clip cycle to max_cycles if necessary
-            if max_cycles > 0 && cycle > max_cycles {
-                break 'mainloop;
-            }
-
-            let cpu_cyles_used = cpu.cycle_to(&mut state, cycle);
-
-            let mut ppu_ref = ppu.borrow_mut();
-
-            for _ in 0..cpu_cyles_used*3 {
-            //for _ in 0..3 {
-                let ppu_result = ppu_ref.cycle(&mut state);
-                //println!("PPU: {:?}", ppu_result);
-                match ppu_result {
-                    ppu::PpuCycleResult::Idle => (),
-                    ppu::PpuCycleResult::Pixel { scanline, x, color } => {
-                        //println!("scanline: {}, x: {}, color: {}", scanline, x, color);
-                        gui.set_pixel(x, scanline, color);
-                    },
-                    ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
-                    ppu::PpuCycleResult::PostRenderLine => (),
-                    ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
-                        if trigger_nmi {
-                            cpu.set_nmi_flag();
-                            gui.render_frame();
-                        }
-                    }
-                    ppu::PpuCycleResult::PreRenderLine => (),
-                }
-            }
-
-            //ppu_ref.cycle();
-            //ppu_ref.cycle();
-            //ppu_ref.cycle();
-
-            cycles_this_frame += 1;
-        }
-
-        cycles_this_second += cycles_this_frame;
-        frame_count += 1;
-
-        if gui.process_events(&mut state) == false {
+        // Clip cycle to max_cycles if necessary
+        if max_cycles > 0 && cycle > max_cycles {
             break 'mainloop;
         }
-        
-        let frame_time_used = Instant::now() - frame_start;
 
-        if frame_time_used < frame_duration {
-          let sleep_time = frame_duration - frame_time_used;
-          sleep(sleep_time);
-          //info!("last sleep_time: {}ms", sleep_time.as_millis());
+        let cpu_cyles_used = cpu.cycle_to(&mut state, cycle);
+
+        let mut ppu_ref = ppu.borrow_mut();
+
+        for _ in 0..cpu_cyles_used*3 {
+            let ppu_result = ppu_ref.cycle(&mut state);
+            //println!("PPU: {:?}", ppu_result);
+            match ppu_result {
+                ppu::PpuCycleResult::Idle => (),
+                ppu::PpuCycleResult::Pixel { scanline, x, color } => {
+                    //println!("scanline: {}, x: {}, color: {}", scanline, x, color);
+                    gui.set_pixel(x, scanline, color);
+                },
+                ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
+                ppu::PpuCycleResult::PostRenderLine => (),
+                ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
+                    if trigger_nmi {
+                        cpu.set_nmi_flag();
+                        gui.render_frame();
+                    }
+                }
+                ppu::PpuCycleResult::PreRenderLine { scanline_cycle } => {
+                    // Use prerender line scanline cycle 2 as our "sleep point" to
+                    // keep timing at 60fps
+                    if scanline_cycle == 2 {
+                        frame_count += 1;
+                        fps += 1;
+
+                        if gui.process_events(&mut state) == false {
+                            break 'mainloop;
+                        }
+
+                        let frame_time_used = Instant::now() - frame_start;
+            
+                        if frame_time_used < frame_duration {
+                          let sleep_time = frame_duration - frame_time_used;
+                          sleep(sleep_time);
+                          //info!("last sleep_time: {}ms", sleep_time.as_millis());
+                        }
+
+                        frame_start = Instant::now();
+                    }
+                },
+            }
         }
 
-        if cycles_this_second >= CPU_FREQ {
-            let fps = frame_count - last_report_frame_count;
+        cycles_this_second += cpu_cyles_used;
 
-            info!("elapsed time for 1s cycle: {}ms, cycles this second: {}, fps: {}",
-                  last_report.elapsed().as_millis(), cycles_this_second, fps);
+        //if cycles_this_second >= CPU_FREQ {
+        if last_report.elapsed().as_millis() >= 1000 {
+            info!("elapsed time for 1s cycle: {}ms, cycles this second: {}, fps: {}, frame counter: {}",
+                  last_report.elapsed().as_millis(), cycles_this_second, fps, frame_count);
 
             last_report = Instant::now();
             cycles_this_second = 0;
-            last_report_frame_count = frame_count;
+            fps = 0;
         }
     }
 }

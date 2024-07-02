@@ -35,9 +35,9 @@ pub enum MirroringType {
 #[derive(Debug)]
 pub struct Flags6 {
     pub mirroring: MirroringType,
-    pub has_battery_backed_prg_ram: bool,
+    pub _has_battery_backed_prg_ram: bool,
     pub has_trainer: bool,
-    pub four_screen_vram: bool,
+    pub _four_screen_vram: bool,
     pub mapper_lower_nybble: u8,
 }
 
@@ -46,9 +46,9 @@ pub struct Flags6 {
  */
 #[derive(Debug)]
 pub struct Flags7 {
-    pub vs_unisystem: bool,
-    pub playchoice_10: bool,
-    pub file_format: FileFormat,
+    pub _vs_unisystem: bool,
+    pub _playchoice_10: bool,
+    pub _file_format: FileFormat,
     pub mapper_upper_nybble: u8,
 }
 
@@ -91,9 +91,9 @@ impl Flags6 {
 
         Self {
             mirroring,
-            has_battery_backed_prg_ram: bit_is_set(1, flags),
+            _has_battery_backed_prg_ram: bit_is_set(1, flags),
             has_trainer: bit_is_set(2, flags),
-            four_screen_vram: bit_is_set(3, flags),
+            _four_screen_vram: bit_is_set(3, flags),
             mapper_lower_nybble,
         }
     }
@@ -109,9 +109,9 @@ impl Flags7 {
         };
             
         Self {
-            vs_unisystem: bit_is_set(0, flags),
-            playchoice_10: bit_is_set(1, flags),
-            file_format,
+            _vs_unisystem: bit_is_set(0, flags),
+            _playchoice_10: bit_is_set(1, flags),
+            _file_format: file_format,
             mapper_upper_nybble: flags & 0xf0,
         }
     }
