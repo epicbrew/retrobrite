@@ -8,9 +8,19 @@ full NES emulation.
 
 What works:
 
-  - 6502 CPU emulation (full instruction set)
-  - PPU background rendering
-
+  - 6502 CPU emulation (full instruction set + illegal opcodes)
+  - Background rendering
+  - Sprite rendering
+  - Basic controller input
+    - Currently controls are hard coded as:
+      - A: Keyboard 'A'
+      - B: Keyboard 'S'
+      - Select: Keyboard 'D'
+      - Start: Keyboard 'F'
+      - D-Pad: Keyboard up/down/left/right keys
+  - Mapper Support
+    - 0 - NROM
+    - 2 - UNROM
 
 Building
 --------
