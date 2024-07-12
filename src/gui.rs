@@ -1,3 +1,5 @@
+use sdl2::controller::{GameController, Button};
+use sdl2::GameControllerSubsystem;
 use sdl2::{video::Window, EventPump, Sdl, VideoSubsystem};
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
@@ -102,6 +104,7 @@ const DOWN_BUTTON_MASK: u8 = 32;
 const LEFT_BUTTON_MASK: u8 = 64;
 const RIGHT_BUTTON_MASK: u8 = 128;
 
+
 pub struct Gui {
     // I think we need to keep sdl_context and video subsystem around
     // so allowing dead_code here.
@@ -109,9 +112,11 @@ pub struct Gui {
     sdl_context: Sdl,
     #[allow(dead_code)]
     video_subsystem: VideoSubsystem,
+    gc_subsystem: GameControllerSubsystem,
     canvas: Canvas<Window>,
     event_pump: EventPump,
     frame_buffer: [u8; FRAME_BUFFER_SIZE_IN_BYTES],
+    game_controllers: Vec<GameController>,
     controller1_state: u8,
     controller2_state: u8,
 }
@@ -127,20 +132,48 @@ impl Gui {
 
         let canvas = window.into_canvas().build().expect("could not creat canvas");
 
+        let gc_subsystem = sdl_context.game_controller()?;
 
         let event_pump = sdl_context.event_pump()?;
 
-        Ok(
-            Self {
+        let mut gui = Self {
                 sdl_context,
                 video_subsystem,
+                gc_subsystem,
                 canvas,
                 event_pump,
                 frame_buffer: [0; FRAME_BUFFER_SIZE_IN_BYTES],
+                game_controllers: Vec::new(),
                 controller1_state: 0,
                 controller2_state: 0,
+        };
+
+        gui.init_controllers();
+
+        Ok(gui)
+    }
+
+    fn init_controllers(&mut self) {
+        let num_controllers = self.gc_subsystem.num_joysticks().unwrap();
+        println!("Found {num_controllers} game controllers");
+    
+        for i in 0..num_controllers {
+            if self.gc_subsystem.is_game_controller(i) {
+                println!("Initializing controller: {}", self.gc_subsystem.name_for_index(i).unwrap());
+
+                let controller = self.gc_subsystem.open(i).expect(
+                    "failed to open game controller for input"
+                );
+
+                println!("name: {}", controller.name());
+                println!("mapping: {}", controller.mapping());
+                println!("attached: {}", controller.attached());
+
+                self.game_controllers.push(controller);
             }
-        )
+        }
+
+        self.gc_subsystem.set_event_state(true);
     }
 
     pub fn set_pixel(&mut self, x: u16, y: u16, value: u8) {
@@ -184,6 +217,7 @@ impl Gui {
     pub fn process_events(&mut self, state: &mut NesState) -> bool {
         let mut result = true;
         for event in self.event_pump.poll_iter() {
+            //println!("{:?}", event);
             match event {
                 Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
                     result = false;
@@ -254,11 +288,69 @@ impl Gui {
                         },
                         _ => ()
                     }
-
                     //println!("released key: {}", code);
                     //if matches!(code, Keycode::A) {
                     //    println!("found: A!!!");
                     //}
+                },
+                Event::ControllerButtonDown { timestamp: _, which: _, button } => {
+                    match button {
+                        Button::A => {
+                            self.controller1_state |= A_BUTTON_MASK;
+                        },
+                        Button::B => {
+                            self.controller1_state |= B_BUTTON_MASK;
+                        },
+                        Button::Back => {
+                            self.controller1_state |= SELECT_BUTTON_MASK;
+                        },
+                        Button::Start => {
+                            self.controller1_state |= START_BUTTON_MASK;
+                        },
+                        Button::DPadUp => {
+                            self.controller1_state |= UP_BUTTON_MASK;
+                        },
+                        Button::DPadDown => {
+                            self.controller1_state |= DOWN_BUTTON_MASK;
+                        },
+                        Button::DPadLeft => {
+                            self.controller1_state |= LEFT_BUTTON_MASK;
+                        },
+                        Button::DPadRight => {
+                            self.controller1_state |= RIGHT_BUTTON_MASK;
+                        },
+                        _ => (),
+                    }
+                },
+                Event::ControllerButtonUp { timestamp: _, which: _, button } => {
+                    match button {
+                        Button::A => {
+                            self.controller1_state &= !A_BUTTON_MASK;
+                        },
+                        Button::B => {
+                            self.controller1_state &= !B_BUTTON_MASK;
+                        },
+                        Button::Back => {
+                            self.controller1_state &= !SELECT_BUTTON_MASK;
+                        },
+                        Button::Start => {
+                            self.controller1_state &= !START_BUTTON_MASK;
+                        },
+                        Button::DPadUp => {
+                            self.controller1_state &= !UP_BUTTON_MASK;
+                        },
+                        Button::DPadDown => {
+                            self.controller1_state &= !DOWN_BUTTON_MASK;
+                        },
+                        Button::DPadLeft => {
+                            self.controller1_state &= !LEFT_BUTTON_MASK;
+                        },
+                        Button::DPadRight => {
+                            self.controller1_state &= !RIGHT_BUTTON_MASK;
+                        },
+                        _ => (),
+                    }
+
                 },
                 _ => {}
             }
