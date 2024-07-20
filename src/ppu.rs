@@ -954,7 +954,9 @@ impl Ppu {
         };
 
         match (bg_pixel, sprite_pixel) {
-            (None, None) => None,
+            // This first case occurs when bg rendering is disabled and there isn't
+            // a sprite at this pixel either.
+            (None, None) => Some(state.ppu_mem_read(0x3F00)),
             (None, Some(spixel)) => Some(spixel.color_index),
             (Some(bgpixel), None) => Some(bgpixel.color_index),
             (Some(bgpixel), Some(spixel)) => {
