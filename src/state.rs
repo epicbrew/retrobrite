@@ -99,17 +99,36 @@ impl NesState {
     
     /// Write an 8-bit value to memory, properly forwarding writes to PPU register
     /// ports as appropriate.
-    pub fn cpu_mem_write(&mut self, addr: u16, value: u8) {
+    pub fn cpu_mem_write(&mut self, addr: u16, value: u8, cycle_count: u64) {
         let addr = self.get_cpu_effective_address(addr);
+
+        // PPU ignores certain writes until approx 29658 cpu cycles
+        let ppu_ready = cycle_count > 29658;
 
         // Handle PPU register address writes if necessary.
         match addr {
-            0x2000 => self.ppu_ref.borrow_mut().write_2000_ppuctrl(value),
-            0x2001 => self.ppu_ref.borrow_mut().write_2001_ppumask(value),
+            0x2000 => {
+                if ppu_ready {
+                    self.ppu_ref.borrow_mut().write_2000_ppuctrl(value);
+                }
+            },
+            0x2001 => {
+                if ppu_ready {
+                    self.ppu_ref.borrow_mut().write_2001_ppumask(value);
+                }
+            },
             0x2003 => self.ppu_ref.borrow_mut().write_2003_oamaddr(value),
             0x2004 => self.ppu_ref.borrow_mut().write_2004_oamdata(value),
-            0x2005 => self.ppu_ref.borrow_mut().write_2005_ppuscroll(value),
-            0x2006 => self.ppu_ref.borrow_mut().write_2006_ppuaddr(value),
+            0x2005 => {
+                if ppu_ready {
+                    self.ppu_ref.borrow_mut().write_2005_ppuscroll(value);
+                }
+            }
+            0x2006 => {
+                if ppu_ready {
+                    self.ppu_ref.borrow_mut().write_2006_ppuaddr(value);
+                }
+            }
             0x2007 => self.ppu_ref.borrow_mut().write_2007_ppudata(value, &mut self.mapper),
             0x4014 => { // PPU OAM DMA
                 let dma_start = u16::from_le_bytes([0x00, value]);

@@ -290,7 +290,7 @@ impl Cpu {
         //let instruction = &Cpu::OP_CODES[self.opcode as usize];
         //let cycle = self.cycle_count + instruction.cycles + self.extra_cycles;
 
-        state.cpu_mem_write(addr, value);
+        state.cpu_mem_write(addr, value, self.cycle_count);
 
         if addr == 0x4014 { // PPU OAM DMA port, takes 513 or 514 cycles
             self.extra_cycles += 513;

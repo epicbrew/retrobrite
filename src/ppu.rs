@@ -168,7 +168,6 @@ impl PpuCtrl {
 /// |+-------- Emphasize green (red on PAL/Dendy)
 /// +--------- Emphasize blue
 ///
-#[derive(Default)]
 struct PpuMask {
     /// Raw value written via $2001
     value: u8,
@@ -180,6 +179,26 @@ struct PpuMask {
     emphasize_red: bool,
     emphasize_green: bool,
     emphasize_blue: bool,
+}
+
+impl Default for PpuMask {
+    fn default() -> Self {
+        let mut ppu_mask = Self {
+            value: 0,
+            greyscale: Default::default(),
+            show_bg_leftmost_8px: Default::default(),
+            show_sprites_leftmost_8px: Default::default(),
+            render_bg: Default::default(),
+            render_sprites: Default::default(),
+            emphasize_red: Default::default(),
+            emphasize_green: Default::default(),
+            emphasize_blue: Default::default()
+        };
+
+        ppu_mask.update(0);
+
+        ppu_mask
+    }
 }
 
 impl PpuMask {
@@ -1016,9 +1035,6 @@ impl Ppu {
 
     /// Write to ppuctrl register.
     pub fn write_2000_ppuctrl(&mut self, value: u8) {
-        if self.total_cycle_count < 30000 {
-            return;
-        }
 
         self.reg.ppu_ctrl.update(value);
 
