@@ -153,13 +153,13 @@ fn main() {
                 ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
                     if trigger_nmi {
                         cpu.set_nmi_flag();
-                        gui.render_frame();
                     }
                 }
                 ppu::PpuCycleResult::PreRenderLine { scanline_cycle } => {
                     // Use prerender line scanline cycle 2 as our "sleep point" to
                     // keep timing at 60fps
                     if scanline_cycle == 2 {
+                        gui.render_frame();
                         frame_count += 1;
                         fps += 1;
 
