@@ -3,24 +3,23 @@ Retrobrite
 
 An NES emulator written in Rust.
 
-This project is in the early stages of development and does not yet support
-full NES emulation.
-
 What works:
 
   - 6502 CPU emulation (full instruction set + illegal opcodes)
   - Background rendering
   - Sprite rendering
-  - Basic controller input
-    - Currently controls are hard coded as:
+  - Basic NES controller input
+    - Currently keyboard controls are hard coded as:
       - A: Keyboard 'A'
       - B: Keyboard 'S'
       - Select: Keyboard 'D'
       - Start: Keyboard 'F'
       - D-Pad: Keyboard up/down/left/right keys
+    - USB/wireless gamepads should work but button mappings are not (yet) 
   - Mapper Support
     - 0 - NROM
     - 2 - UNROM
+    - 71 - Camerica (UNROM clone)
 
 Building
 --------
@@ -41,7 +40,7 @@ Compile and run with cargo:
 Compile and run with Just:
 
     $ just list            # Get list of commands
-    $ just run ROM         # Run ROM (in debug mode)
-    $ just runrelease ROM  # Run ROM (in release mode)
+    $ just run ROM         # Run ROM
+    $ just debugrun ROM    # Run ROM (in debug mode)
     $ just unittest        # Run unit tests
     $ just nestest         # Run nestest test rom
