@@ -15,7 +15,7 @@ What works:
       - Select: Keyboard 'D'
       - Start: Keyboard 'F'
       - D-Pad: Keyboard up/down/left/right keys
-    - USB/wireless gamepads should work but button mappings are not (yet) 
+    - USB/wireless gamepads should work but button mappings are not (yet) customizable
   - Mapper Support
     - 0 - NROM
     - 2 - UNROM
