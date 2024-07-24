@@ -1,5 +1,5 @@
-pub mod nrom000;
-pub mod unrom002;
+pub mod m000_nrom;
+pub mod m002_unrom;
 
 use crate::ines::InesRom;
 use crate::mem::Memory;
@@ -44,9 +44,9 @@ pub trait Mapper {
 pub fn get_mapper(number: u16, cpu_mem: Memory, ppu_mem: Memory) -> Box<dyn Mapper> {
     match number {
         //0 => Box::new(nrom000::NromMapper::new()),
-        0 => Box::new(nrom000::new(cpu_mem, ppu_mem)),
-        2 => Box::new(unrom002::new(cpu_mem, ppu_mem)),
-        71 => Box::new(unrom002::new(cpu_mem, ppu_mem)), // Same as mapper 002
+        0 => Box::new(m000_nrom::new(cpu_mem, ppu_mem)),
+        2 => Box::new(m002_unrom::new(cpu_mem, ppu_mem)),
+        71 => Box::new(m002_unrom::new(cpu_mem, ppu_mem)), // Same as mapper 002
         _ => panic!("Unsupported mapper: {}", number),
     }
 }
