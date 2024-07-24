@@ -443,9 +443,12 @@ impl Ppu {
                 self.scanline = 0;
                 self.frame += 1;
 
-                // On odd numbered frames skip the idle tick on scanline 0, cycle 0
+                // On odd numbered frames skip the idle tick on scanline 0, cycle 0.
+                // But only when rendering is enabled.
                 if self.frame % 2 == 1 {
-                    self.scanline_cycle = 1;
+                    if self.rendering_enabled() {
+                        self.scanline_cycle = 1;
+                    }
                 }
             }
         }
@@ -1186,6 +1189,10 @@ impl Ppu {
 
     fn get_fine_y_scroll(&self) -> u8 {
         ((self.reg.v & 0x7000) >> 12) as u8
+    }
+
+    fn rendering_enabled(&self) -> bool {
+        self.reg.ppu_mask.render_bg || self.reg.ppu_mask.render_sprites
     }
 
 }
