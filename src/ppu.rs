@@ -13,7 +13,7 @@ use sprite::*;
 pub enum PpuCycleResult {
     Idle,
     Pixel {scanline: u16, x: u16, color: u8},
-    HBlank {scanline: u16, cycle: u16},
+    HBlank,
     PostRenderLine,
     VBlankLine {trigger_nmi: bool, scanline: u16},
     PreRenderLine {scanline_cycle: u16 },
@@ -616,11 +616,11 @@ impl Ppu {
                         self.reset_horizontal_position_in_v();
 
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
-                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
+                        PpuCycleResult::HBlank
                     }
                     258..=320 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::Idle;
-                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
+                        PpuCycleResult::HBlank
                     }
                     321..=336 => {
                         if self.scanline_cycle == 321 {
@@ -637,17 +637,17 @@ impl Ppu {
                         }
 
                         self.bg_render_state.fetch_state.next();
-                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
+                        PpuCycleResult::HBlank
                     }
                     337 | 339 => {
                         self.bg_render_state.fetch_state = PpuBgFetchState::NametableAddr;
                         self.do_bg_fetches(state);
                         self.bg_render_state.fetch_state.next();
-                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
+                        PpuCycleResult::HBlank
                     }
                     338 | 340 => {
                         self.do_bg_fetches(state);
-                        PpuCycleResult::HBlank { scanline: self.scanline, cycle: self.scanline_cycle }
+                        PpuCycleResult::HBlank
                     }
                     _ => panic!("invalid scanline/cycle: {}/{}", self.scanline, self.scanline_cycle)
                 };

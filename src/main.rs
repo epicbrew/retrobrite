@@ -141,18 +141,18 @@ fn main() {
 
         for _ in 0..cpu_cyles_used*3 {
             let ppu_result = ppu_ref.cycle(&mut state);
-            //println!("PPU: {:?}", ppu_result);
+
             match ppu_result {
                 ppu::PpuCycleResult::Idle => (),
                 ppu::PpuCycleResult::Pixel { scanline, x, color } => {
-                    //println!("scanline: {}, x: {}, color: {}", scanline, x, color);
                     gui.set_pixel(x, scanline, color);
                 },
-                ppu::PpuCycleResult::HBlank { scanline: _, cycle: _} => (),
+                ppu::PpuCycleResult::HBlank => (),
                 ppu::PpuCycleResult::PostRenderLine => (),
-                ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline: _ } => {
+                ppu::PpuCycleResult::VBlankLine { trigger_nmi, scanline} => {
                     if trigger_nmi {
                         cpu.set_nmi_flag();
+                        trace!("VBlank: nmi triggered at scanline {scanline}");
                     }
                 }
                 ppu::PpuCycleResult::PreRenderLine { scanline_cycle } => {
@@ -172,7 +172,6 @@ fn main() {
                         if frame_time_used < frame_duration {
                           let sleep_time = frame_duration - frame_time_used;
                           sleep(sleep_time);
-                          //info!("last sleep_time: {}ms", sleep_time.as_millis());
                         }
 
                         frame_start = Instant::now();
@@ -183,7 +182,6 @@ fn main() {
 
         cycles_this_second += cpu_cyles_used;
 
-        //if cycles_this_second >= CPU_FREQ {
         if last_report.elapsed().as_millis() >= 1000 {
             info!("elapsed time for 1s cycle: {}ms, cycles this second: {}, fps: {}, frame counter: {}",
                   last_report.elapsed().as_millis(), cycles_this_second, fps, frame_count);
