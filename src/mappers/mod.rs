@@ -1,4 +1,5 @@
 pub mod m000_nrom;
+pub mod m001_mmc1;
 pub mod m002_unrom;
 
 use crate::ines::InesRom;
