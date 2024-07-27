@@ -46,6 +46,7 @@ pub fn get_mapper(number: u16, cpu_mem: Memory, ppu_mem: Memory) -> Box<dyn Mapp
     match number {
         //0 => Box::new(nrom000::NromMapper::new()),
         0 => Box::new(m000_nrom::new(cpu_mem, ppu_mem)),
+        1 => Box::new(m001_mmc1::new(cpu_mem, ppu_mem)),
         2 => Box::new(m002_unrom::new(cpu_mem, ppu_mem)),
         71 => Box::new(m002_unrom::new(cpu_mem, ppu_mem)), // Same as mapper 002
         _ => panic!("Unsupported mapper: {}", number),
