@@ -18,6 +18,7 @@ What works:
     - USB/wireless gamepads should work but button mappings are not (yet) customizable
   - Mapper Support
     - 0 - NROM
+    - 1 - MMC1
     - 2 - UNROM
     - 71 - Camerica (UNROM clone)
 
