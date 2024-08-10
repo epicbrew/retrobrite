@@ -1,6 +1,6 @@
-use super::{Mapper, get_ppu_effective_address};
+use super::Mapper;
 use crate::ines::{InesRom, MirroringType};
-use crate::mem::Memory;
+use crate::mem::{Memory, PpuMemory};
 use crate::ppu::constants::*;
 
 
@@ -8,18 +8,18 @@ pub struct NromMapper {
     name: &'static str,
     number: u16,
     cpu_mem: Memory,
-    ppu_mem: Memory,
-    mirroring: MirroringType,
+    ppu_mem: PpuMemory,
+    mirroring: Mirroring,
     chr_ram: bool,
 }
 
-pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> NromMapper {
+pub fn new(cpu_mem: Memory, ppu_mem: PpuMemory) -> NromMapper {
     NromMapper {
         name: "NROM",
         number: 0,
         cpu_mem,
         ppu_mem,
-        mirroring: MirroringType::Horizontal,
+        mirroring: Mirroring::Horizontal,
         chr_ram: false,
     }
 }
@@ -46,6 +46,13 @@ impl Mapper for NromMapper {
             self.cpu_mem.load(0xC000, &ines.prg_rom[1]);
         }
 
+        self.mirroring = match ines.header.flags6.mirroring {
+            MirroringType::Horizontal => Mirroring::Horizontal,
+            MirroringType::Vertical => Mirroring::Vertical,
+        };
+
+        self.ppu_mem.set_mirroring(self.mirroring);
+
         match ines.header.num_chr_rom_chunks {
             0 => self.chr_ram = true,
             1 => self.ppu_mem.load(0x0000, &ines.chr_rom[0]),
@@ -54,10 +61,6 @@ impl Mapper for NromMapper {
             }
         }
 
-        self.mirroring = match ines.header.flags6.mirroring {
-            MirroringType::Horizontal => MirroringType::Horizontal,
-            MirroringType::Vertical => MirroringType::Vertical,
-        }
     }
     
     fn cpu_read(&mut self, addr: u16) -> u8 {
@@ -76,12 +79,12 @@ impl Mapper for NromMapper {
     }
 
     fn ppu_read(&mut self, addr: u16) -> u8 {
-        let addr = get_ppu_effective_address(addr);
+        //let addr = get_ppu_effective_address(addr);
         self.ppu_mem.read(addr)
     }
     
     fn ppu_write(&mut self, addr: u16, value: u8) {
-        let addr = get_ppu_effective_address(addr);
+        //let addr = get_ppu_effective_address(addr);
 
         match addr {
             0x0000..=0x1FFF => {
@@ -90,17 +93,13 @@ impl Mapper for NromMapper {
                 }
                 // Otherwise, cannot overwrite pattern table ROM
             }, 
-            NAMETABLE_0..=NAMETABLE_3_END => {
-                let mirrored_address = self.get_mirrored_address(addr);
-                self.ppu_mem.write(addr, value);
-                self.ppu_mem.write(mirrored_address, value);
-            },
             _ => self.ppu_mem.write(addr, value),
         }
     }
 
 }
 
+/*/
 impl NromMapper {
     fn get_mirrored_address(&self, addr: u16) -> u16 {
         match self.mirroring {
@@ -130,3 +129,4 @@ impl NromMapper {
     }
 
 }
+    */

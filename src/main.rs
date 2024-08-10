@@ -26,7 +26,7 @@ mod ines;
 use ines::InesRom;
 
 use crate::gui::Gui;
-use crate::mem::Memory;
+use crate::mem::{Memory, PpuMemory};
 mod mappers;
 
 mod gui;
@@ -84,7 +84,7 @@ fn main() {
 
     // Init mapper and load rom
     let mut mapper = mappers::get_mapper(
-        ines_file.get_mapper_number(), Memory::new_cpu(), Memory::new_ppu());
+        ines_file.get_mapper_number(), Memory::new_cpu(), PpuMemory::new());
 
     mapper.print_info();
     mapper.load_rom(&ines_file);

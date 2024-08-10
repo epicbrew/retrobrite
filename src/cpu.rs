@@ -1386,7 +1386,7 @@ mod tests {
     use std::rc::Rc;
 
     use super::*;
-    use crate::mem::Memory;
+    use crate::mem::{Memory, PpuMemory};
     use crate::ppu::Ppu;
     use crate::mappers::get_mapper;
 
@@ -1413,7 +1413,7 @@ mod tests {
             Some(mem) => mem
         };
 
-        NesState::new(get_mapper(0, cpu_mem, Memory::new_ppu()),
+        NesState::new(get_mapper(0, cpu_mem, PpuMemory::new()),
                       Rc::new(RefCell::new(Ppu::new())))
     }
 

@@ -1,7 +1,7 @@
 
-use super::{Mapper, get_ppu_effective_address};
+use super::Mapper;
 use crate::ines::{InesRom, MirroringType, PRG_ROM_CHUNK_SIZE};
-use crate::mem::Memory;
+use crate::mem::{Memory, PpuMemory};
 use crate::ppu::constants::*;
 
 
@@ -9,18 +9,18 @@ pub struct UnromMapper {
     name: &'static str,
     number: u16,
     cpu_mem: Memory,
-    ppu_mem: Memory,
-    mirroring: MirroringType,
+    ppu_mem: PpuMemory,
+    mirroring: Mirroring,
     prg_rom_banks: Vec<[u8; PRG_ROM_CHUNK_SIZE]>
 }
 
-pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> UnromMapper {
+pub fn new(cpu_mem: Memory, ppu_mem: PpuMemory) -> UnromMapper {
     UnromMapper {
         name: "UNROM",
         number: 2,
         cpu_mem,
         ppu_mem,
-        mirroring: MirroringType::Horizontal,
+        mirroring: Mirroring::Horizontal,
         prg_rom_banks: Vec::new()
     }
 }
@@ -43,9 +43,11 @@ impl Mapper for UnromMapper {
         // UNROM have chr ram, so no need to load anything into ppu mem here
 
         self.mirroring = match ines.header.flags6.mirroring {
-            MirroringType::Horizontal => MirroringType::Horizontal,
-            MirroringType::Vertical => MirroringType::Vertical,
-        }
+            MirroringType::Horizontal => Mirroring::Horizontal,
+            MirroringType::Vertical => Mirroring::Vertical,
+        };
+
+        self.ppu_mem.set_mirroring(self.mirroring);
     }
     
     fn cpu_read(&mut self, addr: u16) -> u8 {
@@ -69,21 +71,11 @@ impl Mapper for UnromMapper {
     }
 
     fn ppu_read(&mut self, addr: u16) -> u8 {
-        let addr = get_ppu_effective_address(addr);
         self.ppu_mem.read(addr)
     }
     
     fn ppu_write(&mut self, addr: u16, value: u8) {
-        let addr = get_ppu_effective_address(addr);
-
-        match addr {
-            NAMETABLE_0..=NAMETABLE_3_END => {
-                let mirrored_address = self.get_mirrored_address(addr);
-                self.ppu_mem.write(addr, value);
-                self.ppu_mem.write(mirrored_address, value);
-            },
-            _ => self.ppu_mem.write(addr, value),
-        }
+        self.ppu_mem.write(addr, value);
     }
 
 }
@@ -94,32 +86,4 @@ impl UnromMapper {
             self.prg_rom_banks.push(*bank);
         }
     }
-
-    fn get_mirrored_address(&self, addr: u16) -> u16 {
-        match self.mirroring {
-            MirroringType::Horizontal => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => {
-                        addr + 0x400
-                    },
-                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        addr - 0x400
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            },
-            MirroringType::Vertical => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_1..=NAMETABLE_1_END => {
-                        addr + 0x800
-                    },
-                    NAMETABLE_2..=NAMETABLE_2_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        addr - 0x800
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            }
-        }
-    }
-
 }

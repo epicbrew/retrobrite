@@ -1,19 +1,11 @@
 
-use super::{Mapper, get_ppu_effective_address};
+use super::Mapper;
 use crate::ines::{InesRom, PRG_ROM_CHUNK_SIZE};
-use crate::mem::Memory;
+use crate::mem::{Memory, PpuMemory};
 use crate::ppu::constants::*;
 use crate::utils::bit_is_set;
 
 const FOUR_KB: usize = 4096;
-
-#[derive(Debug)]
-enum Mirroring {
-    Vertical,
-    Horizontal,
-    OneScreen0,
-    OneScreen1,
-}
 
 /// Possible statuses returned after pushing a value into the
 /// 5-bit shift register.
@@ -52,7 +44,7 @@ pub struct Mmc1Mapper {
     name: &'static str,
     number: u16,
     cpu_mem: Memory,
-    ppu_mem: Memory,
+    ppu_mem: PpuMemory,
     mirroring: Mirroring,
     prg_rom_banks: Vec<[u8; PRG_ROM_CHUNK_SIZE]>,
 
@@ -69,7 +61,7 @@ pub struct Mmc1Mapper {
     chr_rom_bank_mode: ChrRomBankMode,
 }
 
-pub fn new(cpu_mem: Memory, ppu_mem: Memory) -> Mmc1Mapper {
+pub fn new(cpu_mem: Memory, ppu_mem: PpuMemory) -> Mmc1Mapper {
     Mmc1Mapper {
         name: "MMC1",
         number: 1,
@@ -108,7 +100,6 @@ impl Mapper for Mmc1Mapper {
         self.cpu_mem.read(addr)
     }
     
-    // TODO: update for mmc1
     fn cpu_write(&mut self, addr: u16, value: u8) {
 
         if addr >= 0x8000 {
@@ -139,16 +130,6 @@ impl Mapper for Mmc1Mapper {
         } else {
             self.cpu_mem.write(addr, value);
         }
-
-        //if addr < 0x8000 {
-        //    self.cpu_mem.write(addr, value);
-        //}
-        //else {
-        //    let bank = (value & 0x0F) as usize;
-        //    //println!("bank switch to {}/{}, addr {}, mem val {}",
-        //    //    bank, value, addr, self.cpu_mem.read(addr));
-        //    self.cpu_mem.load(0x8000, &self.prg_rom_banks[bank]);
-        //}
     }
     
     fn get_cpu_dma_slice(&self, addr: u16) -> &[u8] {
@@ -156,14 +137,17 @@ impl Mapper for Mmc1Mapper {
     }
 
     fn ppu_read(&mut self, addr: u16) -> u8 {
-        let addr = get_ppu_effective_address(addr);
         self.ppu_mem.read(addr)
     }
     
     // TODO: update for mmc1
     fn ppu_write(&mut self, addr: u16, value: u8) {
-        let addr = get_ppu_effective_address(addr);
+        //let addr = get_ppu_effective_address(addr);
+        //let addr = self.get_ppu_effective_address(addr);
 
+        self.ppu_mem.write(addr, value);
+
+        /*
         match addr {
             NAMETABLE_0..=NAMETABLE_3_END => {
                 let mirrored_addresses = self.get_mirrored_addresses(addr);
@@ -175,11 +159,61 @@ impl Mapper for Mmc1Mapper {
             },
             _ => self.ppu_mem.write(addr, value),
         }
+        */
     }
 
 }
 
 impl Mmc1Mapper {
+    /*
+    fn get_ppu_effective_address(&self, addr: u16) -> u16 {
+        let effective_addr = addr % 0x4000; // Wrap at 0x4000
+
+        match effective_addr {
+            NAMETABLE_0..=NAMETABLE_3_END => self.get_nametable_address(effective_addr),
+            0x3F20..=0x3FFF => effective_addr & 0x3F1F,
+            _ => effective_addr
+        }
+    }
+
+    fn get_nametable_address(&self, addr: u16) -> u16 {
+        match self.mirroring {
+            Mirroring::Vertical => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_1_END => addr,
+                    NAMETABLE_2..=NAMETABLE_3_END => addr - 0x800,
+                    _ => panic!("mmc1: address is not a nametable address"),
+                }
+            },
+            Mirroring::Horizontal => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => addr,
+                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => addr - 0x400,
+                    _ => panic!("mmc1: address is not a nametable address"),
+                }
+            },
+            Mirroring::OneScreen0 => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_0_END => addr,
+                    NAMETABLE_1..=NAMETABLE_1_END => addr - 0x400,
+                    NAMETABLE_2..=NAMETABLE_2_END => addr - 0x800,
+                    NAMETABLE_3..=NAMETABLE_3_END => addr - 0xC00,
+                    _ => panic!("mmc1: address is not a nametable address"),
+                }
+            },
+            Mirroring::OneScreen1 => {
+                match addr {
+                    NAMETABLE_0..=NAMETABLE_0_END => addr + 0x400,
+                    NAMETABLE_1..=NAMETABLE_1_END => addr,
+                    NAMETABLE_2..=NAMETABLE_2_END => addr - 0x400,
+                    NAMETABLE_3..=NAMETABLE_3_END => addr - 0x800,
+                    _ => panic!("mmc1: address is not a nametable address"),
+                }
+            },
+        }
+    }
+    */
+
     fn init_prg_banks(&mut self, ines: &InesRom) {
         for bank in ines.prg_rom.iter() {
             self.prg_rom_banks.push(*bank);
@@ -248,7 +282,8 @@ impl Mmc1Mapper {
             _ => panic!("mmc1: invalid mirror mode: {mirror_mode}"),
         };
 
-        self.mirror_nametables();
+        //self.mirror_nametables();
+        self.ppu_mem.set_mirroring(self.mirroring);
 
         println!("mirroring mode: {:?}", self.mirroring);
 
@@ -324,6 +359,7 @@ impl Mmc1Mapper {
     }
 
     // TODO: update for mmc1
+    /*
     fn get_mirrored_addresses(&self, addr: u16) -> Vec<u16> {
         let mut mirrored_addrs = Vec::new();
 
@@ -384,7 +420,9 @@ impl Mmc1Mapper {
 
         return mirrored_addrs;
     }
+    */
 
+    /*
     fn mirror_nametables(&mut self) {
         match self.mirroring {
             Mirroring::Vertical => {
@@ -420,5 +458,6 @@ impl Mmc1Mapper {
             },
         }
     }
+    */
 
 }
