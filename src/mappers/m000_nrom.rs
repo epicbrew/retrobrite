@@ -79,13 +79,10 @@ impl Mapper for NromMapper {
     }
 
     fn ppu_read(&mut self, addr: u16) -> u8 {
-        //let addr = get_ppu_effective_address(addr);
         self.ppu_mem.read(addr)
     }
     
     fn ppu_write(&mut self, addr: u16, value: u8) {
-        //let addr = get_ppu_effective_address(addr);
-
         match addr {
             0x0000..=0x1FFF => {
                 if self.chr_ram {
@@ -98,35 +95,3 @@ impl Mapper for NromMapper {
     }
 
 }
-
-/*/
-impl NromMapper {
-    fn get_mirrored_address(&self, addr: u16) -> u16 {
-        match self.mirroring {
-            MirroringType::Horizontal => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => {
-                        addr + 0x400
-                    },
-                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        addr - 0x400
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            },
-            MirroringType::Vertical => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_1..=NAMETABLE_1_END => {
-                        addr + 0x800
-                    },
-                    NAMETABLE_2..=NAMETABLE_2_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        addr - 0x800
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            }
-        }
-    }
-
-}
-    */

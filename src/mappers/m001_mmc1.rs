@@ -140,79 +140,13 @@ impl Mapper for Mmc1Mapper {
         self.ppu_mem.read(addr)
     }
     
-    // TODO: update for mmc1
     fn ppu_write(&mut self, addr: u16, value: u8) {
-        //let addr = get_ppu_effective_address(addr);
-        //let addr = self.get_ppu_effective_address(addr);
-
         self.ppu_mem.write(addr, value);
-
-        /*
-        match addr {
-            NAMETABLE_0..=NAMETABLE_3_END => {
-                let mirrored_addresses = self.get_mirrored_addresses(addr);
-                self.ppu_mem.write(addr, value);
-
-                for mirrored_addr in mirrored_addresses.iter() {
-                    self.ppu_mem.write(*mirrored_addr, value);
-                }
-            },
-            _ => self.ppu_mem.write(addr, value),
-        }
-        */
     }
 
 }
 
 impl Mmc1Mapper {
-    /*
-    fn get_ppu_effective_address(&self, addr: u16) -> u16 {
-        let effective_addr = addr % 0x4000; // Wrap at 0x4000
-
-        match effective_addr {
-            NAMETABLE_0..=NAMETABLE_3_END => self.get_nametable_address(effective_addr),
-            0x3F20..=0x3FFF => effective_addr & 0x3F1F,
-            _ => effective_addr
-        }
-    }
-
-    fn get_nametable_address(&self, addr: u16) -> u16 {
-        match self.mirroring {
-            Mirroring::Vertical => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_1_END => addr,
-                    NAMETABLE_2..=NAMETABLE_3_END => addr - 0x800,
-                    _ => panic!("mmc1: address is not a nametable address"),
-                }
-            },
-            Mirroring::Horizontal => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => addr,
-                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => addr - 0x400,
-                    _ => panic!("mmc1: address is not a nametable address"),
-                }
-            },
-            Mirroring::OneScreen0 => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END => addr,
-                    NAMETABLE_1..=NAMETABLE_1_END => addr - 0x400,
-                    NAMETABLE_2..=NAMETABLE_2_END => addr - 0x800,
-                    NAMETABLE_3..=NAMETABLE_3_END => addr - 0xC00,
-                    _ => panic!("mmc1: address is not a nametable address"),
-                }
-            },
-            Mirroring::OneScreen1 => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END => addr + 0x400,
-                    NAMETABLE_1..=NAMETABLE_1_END => addr,
-                    NAMETABLE_2..=NAMETABLE_2_END => addr - 0x400,
-                    NAMETABLE_3..=NAMETABLE_3_END => addr - 0x800,
-                    _ => panic!("mmc1: address is not a nametable address"),
-                }
-            },
-        }
-    }
-    */
 
     fn init_prg_banks(&mut self, ines: &InesRom) {
         for bank in ines.prg_rom.iter() {
@@ -282,10 +216,7 @@ impl Mmc1Mapper {
             _ => panic!("mmc1: invalid mirror mode: {mirror_mode}"),
         };
 
-        //self.mirror_nametables();
         self.ppu_mem.set_mirroring(self.mirroring);
-
-        println!("mirroring mode: {:?}", self.mirroring);
 
         self.prg_rom_bank_mode = match prg_mode {
             0|1 => PrgRomBankMode::Bank8000_32KB,
@@ -357,107 +288,4 @@ impl Mmc1Mapper {
         let n = self.prg_rom_banks.len();
         self.cpu_mem.load(0xC000, &self.prg_rom_banks[n-1]);
     }
-
-    // TODO: update for mmc1
-    /*
-    fn get_mirrored_addresses(&self, addr: u16) -> Vec<u16> {
-        let mut mirrored_addrs = Vec::new();
-
-        match self.mirroring {
-            Mirroring::Horizontal => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_2..=NAMETABLE_2_END => {
-                        mirrored_addrs.push(addr + 0x400);
-                    },
-                    NAMETABLE_1..=NAMETABLE_1_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        mirrored_addrs.push(addr - 0x400);
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            },
-            Mirroring::Vertical => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END | NAMETABLE_1..=NAMETABLE_1_END => {
-                        mirrored_addrs.push(addr + 0x800);
-                    },
-                    NAMETABLE_2..=NAMETABLE_2_END | NAMETABLE_3..=NAMETABLE_3_END => {
-                        mirrored_addrs.push(addr - 0x800);
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-            }
-            Mirroring::OneScreen0 | Mirroring::OneScreen1 => {
-                match addr {
-                    NAMETABLE_0..=NAMETABLE_0_END => {
-                        mirrored_addrs.push(addr + 0x400); // NT1
-                        mirrored_addrs.push(addr + 0x800); // NT2
-                        mirrored_addrs.push(addr + 0xC00); // NT3
-                    },
-                    NAMETABLE_1..=NAMETABLE_1_END => {
-                        mirrored_addrs.push(addr - 0x400); // NT0
-                        mirrored_addrs.push(addr + 0x400); // NT2
-                        mirrored_addrs.push(addr + 0x800); // NT3
-                    },
-                    NAMETABLE_2..=NAMETABLE_2_END => {
-                        mirrored_addrs.push(addr - 0x800); // NT0
-                        mirrored_addrs.push(addr - 0x400); // NT1
-                        mirrored_addrs.push(addr + 0x400); // NT3
-                    },
-                    NAMETABLE_3..=NAMETABLE_3_END => {
-                        mirrored_addrs.push(addr - 0xC00); // NT0
-                        mirrored_addrs.push(addr - 0x800); // NT1
-                        mirrored_addrs.push(addr - 0x400); // NT2
-                    },
-                    _ => panic!("address is not within a nametable")
-                }
-
-            },
-            // Currently not sure how my implementation for this would
-            // be different from OneScreen0
-            //Mirroring::OneScreen1 => {
-            //},
-        }
-
-        return mirrored_addrs;
-    }
-    */
-
-    /*
-    fn mirror_nametables(&mut self) {
-        match self.mirroring {
-            Mirroring::Vertical => {
-                let mut nt_slice: [u8; 0x400] = [0; 0x400]; 
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2000, 0x400));
-                self.ppu_mem.load(0x2800, &nt_slice);
-
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2400, 0x400));
-                self.ppu_mem.load(0x2C00, &nt_slice);
-            }
-            Mirroring::Horizontal => {
-                let mut nt_slice: [u8; 0x400] = [0; 0x400]; 
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2000, 0x400));
-                self.ppu_mem.load(0x2400, &nt_slice);
-
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2800, 0x400));
-                self.ppu_mem.load(0x2C00, &nt_slice);
-
-            }
-            Mirroring::OneScreen0 => {
-                let mut nt_slice: [u8; 0x400] = [0; 0x400]; 
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2000, 0x400));
-                self.ppu_mem.load(0x2400, &nt_slice);
-                self.ppu_mem.load(0x2800, &nt_slice);
-                self.ppu_mem.load(0x2C00, &nt_slice);
-            },
-            Mirroring::OneScreen1 => { 
-                let mut nt_slice: [u8; 0x400] = [0; 0x400]; 
-                nt_slice.copy_from_slice(self.ppu_mem.get_slice(0x2400, 0x400));
-                self.ppu_mem.load(0x2000, &nt_slice);
-                self.ppu_mem.load(0x2800, &nt_slice);
-                self.ppu_mem.load(0x2C00, &nt_slice);
-            },
-        }
-    }
-    */
-
 }
