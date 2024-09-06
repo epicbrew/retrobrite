@@ -54,6 +54,10 @@ impl NesState {
         }
     }
 
+    pub fn shutdown(&mut self) {
+        self.mapper.shutdown();
+    }
+
     fn get_cpu_effective_address(&self, addr: u16) -> u16 {
         match addr {
             // 0000-07FF is RAM with 0800-1FFF mirroring it

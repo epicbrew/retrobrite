@@ -34,6 +34,11 @@ pub trait Mapper {
     /// Write to PPU memory.
     fn ppu_write(&mut self, addr: u16, value: u8);
 
+    /// Perform any shutdown tasks (write wram file, etc).
+    fn shutdown(&mut self) {
+        // Default is to do nothing
+    }
+
     /// Print mapper name/number to stdout.
     fn print_info(&self) {
         println!("Mapper: {} ({:03})", self.name(), self.number());
