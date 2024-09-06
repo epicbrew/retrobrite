@@ -1,3 +1,11 @@
+use std::path::PathBuf;
+
+pub fn get_data_dir_path() -> PathBuf {
+    let mut retrobrite_dir_path = dirs::data_dir().unwrap();
+    retrobrite_dir_path.push("retrobrite");
+
+    retrobrite_dir_path
+}
 
 pub fn bit_is_set(bit: u8, input: u8) -> bool {
     (input & (1 << bit)) != 0

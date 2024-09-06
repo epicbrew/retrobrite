@@ -4,6 +4,7 @@ use crate::ines::{InesRom, PRG_ROM_CHUNK_SIZE};
 use crate::mem::{Memory, PpuMemory};
 use crate::ppu::constants::*;
 use crate::utils::bit_is_set;
+use crate::wram::WRam;
 
 const FOUR_KB: usize = 4096;
 
@@ -59,6 +60,8 @@ pub struct Mmc1Mapper {
 
     prg_rom_bank_mode: PrgRomBankMode,
     chr_rom_bank_mode: ChrRomBankMode,
+
+    wram: Option<WRam>,
 }
 
 pub fn new(cpu_mem: Memory, ppu_mem: PpuMemory) -> Mmc1Mapper {
@@ -74,6 +77,7 @@ pub fn new(cpu_mem: Memory, ppu_mem: PpuMemory) -> Mmc1Mapper {
         reg_write_count: 0,
         prg_rom_bank_mode: PrgRomBankMode::BankC000Fixed,
         chr_rom_bank_mode: ChrRomBankMode::Switch8KB,
+        wram: None,
     }
 }
 
@@ -87,6 +91,12 @@ impl Mapper for Mmc1Mapper {
     }
 
     fn load_rom(&mut self, ines: &InesRom) {
+        if ines.header.flags6._has_battery_backed_prg_ram {
+            let cart_wram = WRam::new(&ines.rom_name);
+
+            self.wram = Some(cart_wram);
+        }
+
         self.init_prg_banks(&ines);
         self.init_chr_banks(&ines);
 
@@ -97,11 +107,54 @@ impl Mapper for Mmc1Mapper {
     }
     
     fn cpu_read(&mut self, addr: u16) -> u8 {
-        self.cpu_mem.read(addr)
+        match addr {
+            0x6000..=0x7FFF => {
+                match &mut self.wram {
+                    Some(cart_wram) => cart_wram.read(addr),
+                    None => self.cpu_mem.read(addr),
+                }
+            }
+            _ => self.cpu_mem.read(addr),
+        }
     }
     
     fn cpu_write(&mut self, addr: u16, value: u8) {
+        match addr {
+            0x6000..=0x7FFF => {
+                match &mut self.wram {
+                    Some(cart_wram) => cart_wram.write(addr, value),
+                    None => self.cpu_mem.write(addr, value),
+                }
+            },
+            0x8000..=0xFFFF => {
+                match self.push_shift_reg(value) {
+                    RegisterStatus::Cleared => self.reset(),
+                    RegisterStatus::Ready => {
+                        match addr {
+                            0x8000..=0x9FFF => {
+                                self.handle_control_register();
+                            },
+                            0xA000..=0xBFFF => {
+                                self.handle_chr0_register();
+                            },
+                            0xC000..=0xDFFF => {
+                                self.handle_chr1_register();
+                            },
+                            0xE000..=0xFFFF => {
+                                self.handle_prg_register();
+                            },
+                            _ => panic!("mmc1: invalid address") // Should never happen
+                        }
 
+                        self.shift_register = 0;
+                    }
+                    RegisterStatus::Partial => (),
+                }
+            }
+            _ => self.cpu_mem.write(addr, value),
+        };
+
+        /*
         if addr >= 0x8000 {
             match self.push_shift_reg(value) {
                 RegisterStatus::Cleared => self.reset(),
@@ -130,6 +183,7 @@ impl Mapper for Mmc1Mapper {
         } else {
             self.cpu_mem.write(addr, value);
         }
+        */
     }
     
     fn get_cpu_dma_slice(&self, addr: u16) -> &[u8] {
@@ -144,11 +198,21 @@ impl Mapper for Mmc1Mapper {
         self.ppu_mem.write(addr, value);
     }
 
+    fn shutdown(&mut self) {
+        match &self.wram {
+            Some(wram) => wram.write_to_file(),
+            None => (),
+        }
+    }
+
 }
 
 impl Mmc1Mapper {
 
     fn init_prg_banks(&mut self, ines: &InesRom) {
+        println!("MMC1 num prg rom banks {} x 16KB = {}KB",
+            ines.header.num_prg_rom_chunks,
+            ines.header.num_prg_rom_chunks * 16);
         for bank in ines.prg_rom.iter() {
             self.prg_rom_banks.push(*bank);
         }

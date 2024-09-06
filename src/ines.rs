@@ -1,4 +1,4 @@
-use std::{path::Path, fs};
+use std::{fs, path::Path, str::FromStr};
 use crate::utils::bit_is_set;
 
 const HEADER_SIZE: usize = 16;
@@ -73,6 +73,7 @@ pub struct InesHeader {
  */
 #[derive(Debug)]
 pub struct InesRom {
+    pub rom_name: String,
     pub header: InesHeader,
     pub prg_rom: Vec<[u8; PRG_ROM_CHUNK_SIZE]>,
     pub chr_rom: Vec<[u8; CHR_ROM_CHUNK_SIZE]>,
@@ -177,7 +178,7 @@ fn parse_chr_rom(buffer: &[u8], num_chr_rom_chunks: usize) -> Vec<[u8; CHR_ROM_C
 }
 
 impl InesRom {
-    pub fn from_buffer(buffer: &[u8]) -> Self {
+    pub fn from_buffer(rom_name: String, buffer: &[u8]) -> Self {
         let header = InesHeader::parse(buffer);
 
         let trainer_bytes: usize = if header.flags6.has_trainer { 512 } else { 0 };
@@ -197,6 +198,7 @@ impl InesRom {
             header.num_chr_rom_chunks);
 
         Self {
+            rom_name,
             header,
             prg_rom,
             chr_rom,
@@ -206,7 +208,10 @@ impl InesRom {
     pub fn from_path(path: &Path) -> Self {
         let file_data = fs::read(path).expect("could not read rom file");
 
-        Self::from_buffer(&file_data)
+        let rom_name = path.file_name().unwrap();
+        let rom_name = rom_name.to_str().unwrap();
+        let rom_name = String::from_str(rom_name).unwrap();
+        Self::from_buffer(rom_name, &file_data)
     }
 
     pub fn get_mapper_number(&self) -> u16 {

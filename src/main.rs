@@ -4,6 +4,7 @@ extern crate clap;
 extern crate sdl2;
 
 use std::cell::RefCell;
+use std::fs;
 use std::rc::Rc;
 use std::time::{Instant, Duration};
 use std::thread::sleep;
@@ -18,6 +19,7 @@ mod ppu;
 use ppu::Ppu;
 
 mod mem;
+mod wram;
 
 mod state;
 use state::NesState;
@@ -66,12 +68,24 @@ struct Cli {
     trace_cpu: bool,
 }
 
+fn ensure_retrobrite_data_dir_exists() {
+    let retrobrite_dir_path = utils::get_data_dir_path();
+
+    if !retrobrite_dir_path.exists() {
+        match fs::create_dir_all(&retrobrite_dir_path) {
+            Ok(_) => info!("created {}", retrobrite_dir_path.to_string_lossy()),
+            Err(e) => error!("could not create {}: {}", 
+                                    retrobrite_dir_path.to_string_lossy(), e),
+        }
+    }
+}
+
 fn main() {
     env_logger::init();
 
     let cli = Cli::parse();
 
-    let rom_path = cli.rom.expect("No rom specifiec (try --help)");
+    let rom_path = cli.rom.expect("No rom specified (try --help)");
     let ines_file = InesRom::from_path(rom_path.as_path());
 
     if cli.rom_info {
@@ -81,6 +95,8 @@ fn main() {
         println!("sizeof chr-rom: {}", ines_file.chr_rom.len());
         std::process::exit(0);
     }
+
+    ensure_retrobrite_data_dir_exists();
 
     // Init mapper and load rom
     let mut mapper = mappers::get_mapper(
@@ -191,4 +207,7 @@ fn main() {
             fps = 0;
         }
     }
+
+    // Call state shutdown to ensure any shutdown related tasks/bookkeeping are done.
+    state.shutdown();
 }
