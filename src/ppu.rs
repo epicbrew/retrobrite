@@ -899,8 +899,11 @@ impl Ppu {
 
     fn render_pixel(&mut self, state: &mut NesState) -> Option<u8> {
 
+        // Don't render the leftmost 8 background pixels if ppu_mask has them turned off
+        let render_bg_col = self.scanline_cycle > 8 || self.reg.ppu_mask.show_bg_leftmost_8px;
+
         // Get background color index
-        let bg_pixel = if self.reg.ppu_mask.render_bg {
+        let bg_pixel = if self.reg.ppu_mask.render_bg && render_bg_col {
             Some(self.get_bg_color_index(state))
         } else {
             None
@@ -918,7 +921,10 @@ impl Ppu {
                 let screen_x = (self.scanline_cycle - 1) as i16;
                 let x_diff = screen_x - (sprite.x_position() as i16);
 
-                if x_diff >= 0 && x_diff <= 7 {
+                // Don't render if first 8 pixels and sprites are turned off there by ppu_mask
+                let render_col = self.scanline_cycle > 8 || self.reg.ppu_mask.show_sprites_leftmost_8px;
+
+                if (x_diff >= 0 && x_diff <= 7) && render_col {
                     let palette_value = sprite.get_palette_value(screen_x as u8);
                     let color_offset = (sprite.palette() << 2) | palette_value;
 
