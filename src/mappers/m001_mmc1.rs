@@ -216,6 +216,8 @@ impl Mmc1Mapper {
         for bank in ines.prg_rom.iter() {
             self.prg_rom_banks.push(*bank);
         }
+
+        println!("MMC1 initialized {} rom banks", self.prg_rom_banks.len());
     }
 
     fn init_chr_banks(&mut self, ines: &InesRom) {
@@ -302,12 +304,14 @@ impl Mmc1Mapper {
                 // We're storing our CHR ROM in banks of 4KB so...
                 // Clear bit0 so bank is a multiple of 2. Then, we'll then use bank
                 // and bank+1 to get our 8KB bank.
-                let bank = (self.shift_register & 0x1E) as usize;
+                let mut bank = (self.shift_register & 0x1E) as usize;
+                bank = bank % self.chr_rom_banks.len();
                 self.ppu_mem.load(0x0000, &self.chr_rom_banks[bank]);
                 self.ppu_mem.load(0x1000, &self.chr_rom_banks[bank+1]);
             },
             ChrRomBankMode::Switch4KB => {
-                let bank = self.shift_register as usize;
+                //let bank = self.shift_register as usize;
+                let bank = (self.shift_register as usize) % self.chr_rom_banks.len();
                 self.ppu_mem.load(0x0000, &self.chr_rom_banks[bank]);
             },
         }
@@ -317,7 +321,8 @@ impl Mmc1Mapper {
         match self.chr_rom_bank_mode {
             ChrRomBankMode::Switch8KB => (),
             ChrRomBankMode::Switch4KB => {
-                let bank = self.shift_register as usize;
+                //let bank = self.shift_register as usize;
+                let bank = (self.shift_register as usize) % self.chr_rom_banks.len();
                 self.ppu_mem.load(0x1000, &self.chr_rom_banks[bank]);
             },
         }
@@ -334,11 +339,13 @@ impl Mmc1Mapper {
                 self.cpu_mem.load(0xC000, &self.prg_rom_banks[bank+1]);
             },
             PrgRomBankMode::Bank8000Fixed => {
-                let bank = self.shift_register as usize;
+                //let bank = self.shift_register as usize;
+                let bank = (self.shift_register as usize) % self.prg_rom_banks.len();
                 self.cpu_mem.load(0xC000, &self.prg_rom_banks[bank]);
             },
             PrgRomBankMode::BankC000Fixed => {
-                let bank = self.shift_register as usize;
+                //let bank = self.shift_register as usize;
+                let bank = (self.shift_register as usize) % self.prg_rom_banks.len();
                 self.cpu_mem.load(0x8000, &self.prg_rom_banks[bank]);
             }
         }
