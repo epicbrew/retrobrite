@@ -102,11 +102,11 @@ impl Flags6 {
 
 impl Flags7 {
     pub fn parse(flags: u8) -> Self {
-        let format_value: u8 = (flags & 0x6) >> 1;
 
-        let file_format = match format_value {
-            2 => FileFormat::INES2,
-            _ => FileFormat::INES,
+        let file_format = if (flags & 0x0C) == 0x08 {
+            FileFormat::INES2
+        } else {
+            FileFormat::INES
         };
             
         Self {
